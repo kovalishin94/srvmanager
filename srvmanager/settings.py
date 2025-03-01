@@ -1,12 +1,29 @@
+import os
+
 from pathlib import Path
+
+
+def get_bool_env(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.lower() in ['true', '1']
+
+
+def get_list_env(name: str, default: list) -> list:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return [item.strip() for item in value.split(',')]
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-4ilz)j9esovxvbm=kzp$*(+tvz#4cyb$&od=kx88m2xgr2esy%'
+SECRET_KEY = os.getenv('SECRET')
 
-DEBUG = True
+DEBUG = get_bool_env('DEBUG', False)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['*'])
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -15,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework'
 ]
 
 MIDDLEWARE = [
@@ -26,6 +44,15 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
 
 ROOT_URLCONF = 'srvmanager.urls'
 
@@ -50,8 +77,12 @@ WSGI_APPLICATION = 'srvmanager.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'USER': os.getenv('POSTGRES_USER'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
+        'HOST': os.getenv('POSTGRES_HOST'),
+        'PORT': os.getenv('POSTGRES_PORT', 5432),
+        'NAME': os.getenv('POSTGRES_DB'),
     }
 }
 
@@ -72,9 +103,9 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Krasnoyarsk'
 
 USE_I18N = True
 
