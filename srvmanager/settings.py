@@ -1,5 +1,5 @@
 import os
-
+from datetime import timedelta
 from pathlib import Path
 
 
@@ -17,6 +17,13 @@ def get_list_env(name: str, default: list) -> list:
     return [item.strip() for item in value.split(',')]
 
 
+def get_int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None or not value.isdigit():
+        return default
+    return int(value)
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv('SECRET')
@@ -32,7 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework'
+    'rest_framework',
+    'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [
@@ -53,6 +61,13 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
 }
+
+ACCESS_TOKEN_LIFETIME = timedelta(
+    minutes=get_int_env('ACCESS_TOKEN_LIFETIME', 5))
+REFRESH_TOKEN_LIFETIME = timedelta(
+    minutes=get_int_env('REFRESH_TOKEN_LIFETIME', 60*24*3))
+
+UPDATE_LAST_LOGIN = True
 
 ROOT_URLCONF = 'srvmanager.urls'
 
