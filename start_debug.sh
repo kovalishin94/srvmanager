@@ -7,5 +7,5 @@ python manage.py makemigrations --noinput
 echo "Применяем миграции..."
 python manage.py migrate --noinput
 
-echo "Запускаем Gunicorn..."
+echo "Запускаем Django..."
 python manage.py runserver 0.0.0.0:8000
