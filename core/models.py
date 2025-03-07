@@ -48,6 +48,10 @@ class Host(models.Model):
     name = models.CharField(max_length=80)
     ip = models.GenericIPAddressField(unique=True)
     os = models.CharField(max_length=10, choices=OS_CHOICES)
+    ssh_credential = models.ForeignKey(
+        SSHCredential, on_delete=models.SET_NULL, null=True, blank=True)
+    winrm_credential = models.ForeignKey(
+        WinRMCredential, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return self.name
