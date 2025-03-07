@@ -4,6 +4,7 @@ from cryptography.fernet import Fernet
 
 from django.db import models
 from django.conf import settings
+from django.core.validators import MaxValueValidator
 
 key_material = hashlib.sha256(
     settings.SECRET_KEY[len('django-insecure-'):].encode()).digest()
@@ -23,6 +24,13 @@ class Credential(models.Model):
 
     class Meta:
         abstract = True
+
+
+class SSHCredential(Credential):
+    port = models.PositiveIntegerField(
+        validators=MaxValueValidator(65535), default=22)
+    ssh_key = models.FileField(upload_to='ssh_keys/', blank=True, null=True)
+    passphrase = models.CharField(max_length=255, blank=True)
 
 
 class Host(models.Model):
