@@ -28,9 +28,15 @@ class Credential(models.Model):
 
 class SSHCredential(Credential):
     port = models.PositiveIntegerField(
-        validators=MaxValueValidator(65535), default=22)
+        validators=[MaxValueValidator(65535)], blank=True, default=22)
     ssh_key = models.FileField(upload_to='ssh_keys/', blank=True, null=True)
     passphrase = models.CharField(max_length=255, blank=True)
+
+
+class WinRMCredential(Credential):
+    port = models.PositiveIntegerField(
+        validators=[MaxValueValidator(65535)], blank=True, default=5985)
+    ssl = models.BooleanField(blank=True, default=False)
 
 
 class Host(models.Model):
