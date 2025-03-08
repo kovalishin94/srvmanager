@@ -18,9 +18,11 @@ class CredentialSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data: dict):
         password = validated_data.pop('password')
+        hosts = validated_data.pop('host', [])
         instance = self.Meta.model(**validated_data)
         instance.set_password(password)
         instance.save()
+        instance.host.set(hosts)
         return instance
 
     def update(self, instance, validated_data: dict):
