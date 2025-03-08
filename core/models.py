@@ -29,7 +29,7 @@ class Host(models.Model):
 class Credential(models.Model):
     username = models.CharField(max_length=100)
     _password = models.BinaryField()
-    host = models.ManyToManyField(Host)
+    host = models.ManyToManyField(Host, blank=True)
 
     def set_password(self, password):
         self._password = fernet.encrypt(password.encode())
