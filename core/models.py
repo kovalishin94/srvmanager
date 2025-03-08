@@ -12,15 +12,33 @@ fernet_key = base64.urlsafe_b64encode(key_material[:32])
 fernet = Fernet(fernet_key)
 
 
+class Host(models.Model):
+    OS_CHOICES = (
+        ('linux', 'Linux'),
+        ('windows', 'Windows'),
+    )
+
+    name = models.CharField(max_length=80)
+    ip = models.GenericIPAddressField(unique=True)
+    os = models.CharField(max_length=10, choices=OS_CHOICES)
+
+    def __str__(self):
+        return self.name
+
+
 class Credential(models.Model):
     username = models.CharField(max_length=100)
     _password = models.BinaryField()
+    host = models.ManyToManyField(Host)
 
     def set_password(self, password):
         self._password = fernet.encrypt(password.encode())
 
     def get_password(self) -> str:
         return fernet.decrypt(bytes(self._password)).decode()
+
+    def __str__(self):
+        return f"{self.username}_{self.id}"
 
     class Meta:
         abstract = True
@@ -37,21 +55,3 @@ class WinRMCredential(Credential):
     port = models.PositiveIntegerField(
         validators=[MaxValueValidator(65535)], blank=True, default=5985)
     ssl = models.BooleanField(blank=True, default=False)
-
-
-class Host(models.Model):
-    OS_CHOICES = (
-        ('linux', 'Linux'),
-        ('windows', 'Windows'),
-    )
-
-    name = models.CharField(max_length=80)
-    ip = models.GenericIPAddressField(unique=True)
-    os = models.CharField(max_length=10, choices=OS_CHOICES)
-    ssh_credential = models.ForeignKey(
-        SSHCredential, on_delete=models.SET_NULL, null=True, blank=True)
-    winrm_credential = models.ForeignKey(
-        WinRMCredential, on_delete=models.SET_NULL, null=True, blank=True)
-
-    def __str__(self):
-        return self.name
