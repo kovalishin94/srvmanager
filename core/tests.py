@@ -137,3 +137,9 @@ class CoreTestCase(APITestCase):
         self.assertEqual(response.data.get('name'), 'edited_host')
         self.assertEqual(response.data.get('ip'), '192.168.99.99')
         self.assertEqual(response.data.get('os'), 'windows')
+
+    def test_host_update_bad_put(self):
+        id = self.create_host().data.get('id')
+        data = {'name': 'edited_host', 'ip': '192.168.99.99'}
+        response = self.client.put(reverse('host-detail', args=[id]), data)
+        self.assertEqual(response.status_code, 400)
