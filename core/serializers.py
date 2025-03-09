@@ -30,6 +30,10 @@ class CredentialSerializer(serializers.ModelSerializer):
             password = validated_data.pop('password')
             instance.set_password(password)
 
+        if 'host' in validated_data:
+            hosts = validated_data.pop('host')
+            instance.host.set(hosts)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
