@@ -3,7 +3,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import AccessToken
 
-from .models import SSHCredential, WinRMCredential, Host
+from .models import SSHCredential, WinRMCredential
 
 
 class CoreTestCase(APITestCase):
