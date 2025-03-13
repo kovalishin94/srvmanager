@@ -48,3 +48,26 @@ class CoreTestCase(APITestCase):
         self.assertEqual(response_create2.status_code, 201)
         self.assertEqual(response_get.status_code, 200)
         self.assertEqual(len(response_get.data), 2)
+
+    def test_execute_command_delete(self):
+        host = Host.objects.create(
+            name='test_host', ip='192.168.0.1', os='windows')
+        winrm_credential = WinRMCredential(username='bad_user')
+        winrm_credential.set_password('bad_password')
+        winrm_credential.save()
+        winrm_credential.host.add(host)
+
+        data1 = {
+            'command': '["ping 8.8.8.8"]',
+            'protocol': 'winrm',
+            'hosts': [host.id],
+            'created_by': self.user.id
+        }
+
+        response_create = self.client.post(
+            reverse('execute-command-list'), data1)
+        response_delete = self.client.delete(
+            reverse('execute-command-detail', args=[response_create.data.get('id')]))
+
+        self.assertEqual(response_create.status_code, 201)
+        self.assertEqual(response_delete.status_code, 204)
