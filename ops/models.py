@@ -1,11 +1,12 @@
 import uuid
 import winrm
+import paramiko
 
 from django.db import models
 from datetime import datetime
 from django.contrib.auth.models import User
 
-from core.models import Host, WinRMCredential
+from core.models import Host, WinRMCredential, SSHCredential
 from .validators import validate_command
 
 
@@ -48,7 +49,7 @@ class ExecuteCommand(BaseOperation):
     stdout = models.JSONField(blank=True, default=dict, editable=False)
     stderr = models.JSONField(blank=True, default=dict, editable=False)
 
-    def run_command(self, session: winrm.Session, ip: str):
+    def run_winrm_command(self, session: winrm.Session, ip: str):
         for command in self.command:
             result = session.run_ps(command)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -72,9 +73,8 @@ class ExecuteCommand(BaseOperation):
         server = f"{http}://{host.ip}:{winrm_credential.port}/wsman"
         session = winrm.Session(server, auth=(
             winrm_credential.username, winrm_credential.get_password()), transport='ntlm')
-
         try:
-            self.run_command(session, host.ip)
+            self.run_winrm_command(session, host.ip)
             self.add_log(f'[{host.ip}]Команда выполнена.')
         except Exception as e:
             self.add_log(
@@ -83,7 +83,54 @@ class ExecuteCommand(BaseOperation):
 
         return True
 
+    def run_ssh_command(self, client: paramiko.SSHClient, ip: str):
+        for command in self.command:
+            stdin, stdout, stderr = client.exec_command(command)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            key = f'{timestamp} [{ip}]'
+            stdout = stdout.read().decode('utf-8')
+            stderr = stderr.read().decode('utf-8')
+            if stdout:
+                self.stdout[key] = stdout
+            if stderr:
+                self.stderr[key] = stderr
+            self.save()
+
+    def run_ssh(self, host: Host) -> bool:
+        ssh_credential: SSHCredential = host.sshcredential_set.first()
+        if not ssh_credential:
+            self.add_log(
+                f'[{host.ip}] Нет учетных записей для выполнения команды.')
+            return False
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        connect_params = {
+            'hostname': host.ip,
+            'port': ssh_credential.port,
+            'username': ssh_credential.username,
+            'timeout': 120.0
+        }
+        if ssh_credential.ssh_key:
+            connect_params['key_filename'] = ssh_credential.ssh_key.path
+            if ssh_credential.passphrase:
+                connect_params['passphrase'] = ssh_credential.passphrase
+        else:
+            connect_params['password'] = ssh_credential.get_password()
+
+        try:
+            client.connect(**connect_params)
+            self.run_ssh_command(client, host.ip)
+            self.add_log(f'[{host.ip}]Команда выполнена.')
+        except Exception as e:
+            self.add_log(
+                f'[{host.ip}] В результате выполнения команды возникла следующая ошибка: {e}')
+        finally:
+            client.close()
+
     def run(self, host_id: int):
         host = Host.objects.get(id=host_id)
         if self.protocol == 'winrm':
             return self.run_winrm(host)
+        if self.protocol == 'ssh':
+            return self.run_ssh(host)
