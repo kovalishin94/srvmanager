@@ -7,19 +7,39 @@ from django.contrib.auth.models import User
 from rest_framework.exceptions import ValidationError
 
 from core.models import Host
+from ops.models import ExecuteCommand
 from .validators import path_validator
 
 
 class EtalonInstance(models.Model):
-    url = models.URLField(editable=False)
+    url = models.URLField(editable=False, blank=True)
     path_to_instance = models.TextField(validators=[path_validator])
     host = models.ForeignKey(
         Host, on_delete=models.CASCADE, related_name='etalon_instances')
-    version = models.CharField(max_length=100, editable=False)
-    tag = models.CharField(max_length=20, editable=False)
-    stand = models.CharField(max_length=255, editable=False)
+    version = models.CharField(max_length=100, editable=False, blank=True)
+    tag = models.CharField(max_length=20, editable=False, blank=True)
+    stand = models.CharField(max_length=255, editable=False, blank=True)
+    is_valid = models.BooleanField(editable=False, default=False)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, editable=False)
+
+    def apply_params(self, params: dict) -> None:
+        stand = params.get('STAND')
+        version = params.get('BRANCH')
+        tag = params.get('TAG')
+        url = params.get('EXTERNAL_HOST_ADDRESS')
+
+        if None in (stand, version, tag, url):
+            self.is_valid = False
+            self.save()
+            return
+
+        self.url = url
+        self.version = version
+        self.tag = tag
+        self.stand = stand
+        self.is_valid = True
+        self.save()
 
 
 class UpdateFile(models.Model):
