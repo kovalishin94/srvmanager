@@ -7,7 +7,7 @@ from datetime import datetime
 from django.contrib.auth.models import User
 
 from core.models import Host, WinRMCredential, SSHCredential
-from .validators import validate_command
+from .validators import validate_command, path_validator
 
 
 class BaseOperation(models.Model):
@@ -29,7 +29,7 @@ class BaseOperation(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def add_log(self, message: str) -> None:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         self.log[timestamp] = message
         print(self.id, message)
         self.save()
@@ -52,7 +52,7 @@ class ExecuteCommand(BaseOperation):
     def run_winrm_command(self, session: winrm.Session, ip: str):
         for command in self.command:
             result = session.run_ps(command)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             stdout = result.std_out.decode('cp1251')
             stderr = result.std_err.decode('cp1251')
             key = f'{timestamp} [{ip}]'
@@ -86,7 +86,7 @@ class ExecuteCommand(BaseOperation):
     def run_ssh_command(self, client: paramiko.SSHClient, ip: str):
         for command in self.command:
             stdin, stdout, stderr = client.exec_command(command)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             key = f'{timestamp} [{ip}]'
             stdout = stdout.read().decode('utf-8')
             stderr = stderr.read().decode('utf-8')
@@ -105,18 +105,7 @@ class ExecuteCommand(BaseOperation):
 
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        connect_params = {
-            'hostname': host.ip,
-            'port': ssh_credential.port,
-            'username': ssh_credential.username,
-            'timeout': 120.0
-        }
-        if ssh_credential.ssh_key:
-            connect_params['key_filename'] = ssh_credential.ssh_key.path
-            if ssh_credential.passphrase:
-                connect_params['passphrase'] = ssh_credential.passphrase
-        else:
-            connect_params['password'] = ssh_credential.get_password()
+        connect_params = ssh_credential.create_connect_params(host.ip)
 
         try:
             client.connect(**connect_params)
@@ -125,8 +114,11 @@ class ExecuteCommand(BaseOperation):
         except Exception as e:
             self.add_log(
                 f'[{host.ip}] В результате выполнения команды возникла следующая ошибка: {e}')
+            return False
         finally:
             client.close()
+
+        return True
 
     def run(self, host_id: int):
         host = Host.objects.get(id=host_id)
@@ -134,3 +126,56 @@ class ExecuteCommand(BaseOperation):
             return self.run_winrm(host)
         if self.protocol == 'ssh':
             return self.run_ssh(host)
+
+
+class SendFile(BaseOperation):
+    PROTOCOL_CHOICES = (
+        ('smb', 'SMB'),
+        ('sftp', 'SFTP'),
+    )
+    protocol = models.CharField(max_length=10, choices=PROTOCOL_CHOICES)
+    local_path = models.TextField(validators=[path_validator], blank=True)
+    target_path = models.TextField(validators=[path_validator])
+    file = models.FileField(upload_to='files_to_send/%Y/%m/', blank=True)
+
+    def send_sftp_file(self, host: Host) -> bool:
+        ssh_credential: SSHCredential = host.sshcredential_set.first()
+        if not ssh_credential:
+            self.add_log(
+                f'[{host.ip}] Нет учетных записей для отправлки файла.')
+            return False
+
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        connect_params = ssh_credential.create_connect_params(host.ip)
+
+        if self.file:
+            local_path = self.file.path
+        else:
+            local_path = self.local_path
+
+        if not local_path:
+            self.add_log(
+                f'[{host.ip}] Нет указан файл для отправки.')
+            return False
+
+        try:
+            client.connect(**connect_params)
+            sftp = client.open_sftp()
+            sftp.put(local_path, self.target_path)
+            self.add_log(f'[{host.ip}]Файл отправлен.')
+        except Exception as e:
+            self.add_log(
+                f'[{host.ip}] В результате отправки файла возникла следующая ошибка: {e}')
+            return False
+        finally:
+            if sftp:
+                sftp.close()
+            client.close()
+
+        return True
+
+    def run(self, host_id: int):
+        host = Host.objects.get(id=host_id)
+        if self.protocol == 'sftp':
+            return self.send_sftp_file(host)
