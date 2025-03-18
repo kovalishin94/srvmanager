@@ -22,6 +22,8 @@ class EtalonInstance(models.Model):
     is_valid = models.BooleanField(editable=False, default=False)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def apply_params(self, params: dict) -> None:
         stand = params.get('STAND')
@@ -40,6 +42,18 @@ class EtalonInstance(models.Model):
         self.stand = stand
         self.is_valid = True
         self.save()
+
+    def create_execute_command(self) -> ExecuteCommand:
+        execute_command = ExecuteCommand.objects.create(
+            command=[
+                f'cat {self.path_to_instance}/stand.env',
+                f'cat {self.path_to_instance}/version.env'
+            ],
+            protocol='ssh',
+            created_by=self.created_by
+        )
+        execute_command.hosts.add(self.host)
+        return execute_command
 
 
 class UpdateFile(models.Model):
