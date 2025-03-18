@@ -50,6 +50,22 @@ class SSHCredential(Credential):
     ssh_key = models.FileField(upload_to='ssh_keys/', blank=True, null=True)
     passphrase = models.CharField(max_length=255, blank=True)
 
+    def create_connect_params(self, ip: str) -> dict:
+        connect_params = {
+            'hostname': ip,
+            'port': self.port,
+            'username': self.username,
+            'timeout': 120.0
+        }
+        if self.ssh_key:
+            connect_params['key_filename'] = self.ssh_key.path
+            if self.passphrase:
+                connect_params['passphrase'] = self.passphrase
+        else:
+            connect_params['password'] = self.get_password()
+
+        return connect_params
+
 
 class WinRMCredential(Credential):
     port = models.PositiveIntegerField(
