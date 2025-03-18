@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import ExecuteCommand
+from .models import ExecuteCommand, SendFile
 
 
 class BaseOperationSerializer(serializers.ModelSerializer):
@@ -15,3 +15,10 @@ class ExecuteCommandSerializer(BaseOperationSerializer):
         model = ExecuteCommand
         fields = BaseOperationSerializer.Meta.fields + \
             ['command', 'protocol', 'stdout', 'stderr']
+
+
+class SendFileSerializer(BaseOperationSerializer):
+    class Meta:
+        model = SendFile
+        fields = BaseOperationSerializer.Meta.fields + \
+            ['protocol', 'local_path', 'target_path', 'file']

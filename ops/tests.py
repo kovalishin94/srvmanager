@@ -7,33 +7,44 @@ from rest_framework_simplejwt.tokens import AccessToken
 from core.models import Host, WinRMCredential, SSHCredential
 
 
-class CoreTestCase(APITestCase):
+class OpsTestCase(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='testuser', password='testpassword')
         self.token = AccessToken.for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
-    def test_execute_winrm_command_create_list(self):
-        host = Host.objects.create(
+        self.winrm_host1 = Host.objects.create(
             name='test_host', ip=os.getenv('WINRM_HOST1'), os='windows')
-        host2 = Host.objects.create(
+        self.winrm_host2 = Host.objects.create(
             name='test_host2', ip=os.getenv('WINRM_HOST2'), os='windows')
         winrm_credential = WinRMCredential(username=os.getenv('WINRM_USER'))
         winrm_credential.set_password(os.getenv('WINRM_PASSWORD'))
         winrm_credential.save()
-        winrm_credential.host.add(host, host2)
+        winrm_credential.host.add(self.winrm_host1, self.winrm_host2)
+
+        self.ssh_host1 = Host.objects.create(
+            name='test_host', ip=os.getenv('SSH_HOST1'), os='linux')
+        self.ssh_host2 = Host.objects.create(
+            name='test_host2', ip=os.getenv('SSH_HOST2'), os='linux')
+        ssh_credential = SSHCredential.objects.create(
+            username=os.getenv('SSH_USER'))
+        ssh_credential.set_password(os.getenv('SSH_PASSWORD'))
+        ssh_credential.save()
+        ssh_credential.host.add(self.ssh_host1, self.ssh_host2)
+
+    def test_execute_winrm_command_create_list(self):
         data1 = {
             'command': '["netstat -an | findstr LISTENING"]',
             'protocol': 'winrm',
-            'hosts': [host.id, host2.id],
+            'hosts': [self.winrm_host1.id, self.winrm_host2.id],
             'created_by': self.user.id
         }
 
         data2 = {
             'command': '["ping 8.8.8.8"]',
             'protocol': 'winrm',
-            'hosts': [host.id, host2.id],
+            'hosts': [self.winrm_host1.id, self.winrm_host2.id],
             'created_by': self.user.id
         }
 
@@ -49,28 +60,17 @@ class CoreTestCase(APITestCase):
         self.assertEqual(len(response_get.data), 2)
 
     def test_execute_ssh_command_create_list(self):
-        host = Host.objects.create(
-            name='test_host', ip=os.getenv('SSH_HOST1'), os='linux')
-        host2 = Host.objects.create(
-            name='test_host2', ip=os.getenv('SSH_HOST2'), os='linux')
-
-        ssh_credential = SSHCredential.objects.create(
-            username=os.getenv('SSH_USER'))
-        ssh_credential.set_password(os.getenv('SSH_PASSWORD'))
-        ssh_credential.save()
-        ssh_credential.host.add(host, host2)
-
         data1 = {
             'command': '["uptime -p", "uptime"]',
             'protocol': 'ssh',
-            'hosts': [host.id, host2.id],
+            'hosts': [self.ssh_host1.id, self.ssh_host2.id],
             'created_by': self.user.id
         }
 
         data2 = {
             'command': '["df -h", "ls -la"]',
             'protocol': 'ssh',
-            'hosts': [host.id, host2.id],
+            'hosts': [self.ssh_host1.id, self.ssh_host2.id],
             'created_by': self.user.id
         }
 
@@ -102,3 +102,15 @@ class CoreTestCase(APITestCase):
 
         self.assertEqual(response_create.status_code, 201)
         self.assertEqual(response_delete.status_code, 204)
+
+    def test_send_file_create(self):
+        data = {
+            'hosts': [self.ssh_host1.id],
+            'protocol': 'sftp',
+            'local_path': '/app/requirements.txt',
+            'target_path': '/opt/jetalon/requirements.txt',
+            'created_by': self.user.id
+        }
+
+        response_create = self.client.post(reverse('send-file-list'), data)
+        self.assertEqual(response_create.status_code, 201)

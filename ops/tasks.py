@@ -1,10 +1,11 @@
 import uuid
 from celery import shared_task, chord
 
-from .models import ExecuteCommand
+from .models import ExecuteCommand, SendFile
 
 types = {
-    'execute-command': ExecuteCommand
+    'execute-command': ExecuteCommand,
+    'send-file': SendFile
 }
 
 
