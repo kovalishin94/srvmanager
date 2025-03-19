@@ -1,7 +1,7 @@
 from django.dispatch import receiver
 from django.db.models.signals import post_save
 
-from .models import EtalonInstance
+from .models import EtalonInstance, UpdateFile
 from .tasks import check_execute_command
 
 
@@ -14,3 +14,11 @@ def etalon_instance_post_save(sender, instance: EtalonInstance, created, **kwarg
 
     check_execute_command.apply_async(
         args=[execute_command.id, instance.id], countdown=10)
+
+
+@receiver(post_save, sender=UpdateFile)
+def etalon_instance_post_save(sender, instance: UpdateFile, created, **kwargs):
+    if not created:
+        return
+
+    instance.set_version()

@@ -3,12 +3,13 @@ import tarfile
 
 from datetime import datetime
 from django.db import models
+from django.core.validators import FileExtensionValidator
 from django.contrib.auth.models import User
 from rest_framework.exceptions import ValidationError
 
 from core.models import Host
 from ops.models import ExecuteCommand
-from .validators import path_validator
+from .validators import path_validator, update_file_validator
 
 
 class EtalonInstance(models.Model):
@@ -57,7 +58,12 @@ class EtalonInstance(models.Model):
 
 
 class UpdateFile(models.Model):
-    file = models.FileField(upload_to='updates/%Y/%m/')
+    file = models.FileField(upload_to='updates/%Y/%m/',
+                            validators=[
+                                FileExtensionValidator(
+                                    allowed_extensions=['gz']),
+                                update_file_validator
+                            ])
     version = models.CharField(max_length=100, editable=False)
     tag = models.CharField(max_length=20, editable=False)
     loaded_by = models.ForeignKey(
@@ -76,18 +82,6 @@ class UpdateFile(models.Model):
                 variables[key.strip()] = value.strip()
         return variables
 
-    def check_files(self) -> bool:
-        check_result = 0
-        targets = ("./version.env", "./jetalon.env")
-        with tarfile.open(self.file.path, 'r:gz') as archive:
-            members = archive.getmembers()
-            for member in members:
-                if member.path == "./stand.env":
-                    return False
-                if member.path in targets:
-                    check_result += 1
-            return check_result == len(targets)
-
     def set_version(self):
         with tarfile.open(self.file.path, 'r:gz') as archive:
             member = archive.getmember('./version.env')
@@ -96,25 +90,12 @@ class UpdateFile(models.Model):
             variables = self.parse_config(content)
             self.version, self.tag = variables.get(
                 'BRANCH'), variables.get('TAG')
+            self.save()
 
     def save(self, *args, **kwargs):
-        try:
+        if self._state.adding:
             self.file.name = f"{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}_" + \
                 self.file.name
-            super().save(*args, **kwargs)
-            is_valid = self.check_files()
-            self.set_version()
-        except KeyError:
-            self.delete()
-            raise ValidationError(
-                "Файл version.env не найден, либо не содержит необходимых ключей")
-        except Exception as e:
-            self.delete()
-            raise ValidationError(
-                f"В процессе валидации возникла непредвиденная ошибка: {str(e)}")
-        if not is_valid:
-            self.delete()
-            raise ValidationError("Файл не является обновлением Эталона")
         super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
