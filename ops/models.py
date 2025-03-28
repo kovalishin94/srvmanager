@@ -19,7 +19,6 @@ class BaseOperation(models.Model):
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    hosts = models.ManyToManyField(Host, blank=True)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, editable=False)
     log = models.JSONField(blank=True, default=dict, editable=False)
@@ -43,7 +42,7 @@ class ExecuteCommand(BaseOperation):
         ('winrm', 'WinRM'),
         ('ssh', 'SSH'),
     )
-
+    hosts = models.ManyToManyField(Host, blank=True)
     command = models.JSONField(validators=[validate_command])
     protocol = models.CharField(max_length=10, choices=PROTOCOL_CHOICES)
     stdout = models.JSONField(blank=True, default=dict, editable=False)
@@ -133,6 +132,7 @@ class SendFile(BaseOperation):
         ('smb', 'SMB'),
         ('sftp', 'SFTP'),
     )
+    hosts = models.ManyToManyField(Host, blank=True)
     protocol = models.CharField(max_length=10, choices=PROTOCOL_CHOICES)
     local_path = models.TextField(validators=[path_validator], blank=True)
     target_path = models.TextField(validators=[path_validator])
