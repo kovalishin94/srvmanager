@@ -1,18 +1,13 @@
 import os
 from django.urls import reverse
-from django.contrib.auth.models import User
-from rest_framework.test import APITestCase
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core.models import Host, WinRMCredential, SSHCredential
+from core.tests import BaseTestCase
 
 
-class OpsTestCase(APITestCase):
+class OpsTestCase(BaseTestCase):
     def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser', password='testpassword')
-        self.token = AccessToken.for_user(self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
+        super().setUp()
 
         self.winrm_host1 = Host.objects.create(
             name='test_host', ip=os.getenv('WINRM_HOST1'), os='windows')

@@ -1,21 +1,16 @@
 import os
 
 from django.urls import reverse
-from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from rest_framework.test import APITestCase
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core.models import Host, SSHCredential
-from .models import UpdateFile
+from core.tests import BaseTestCase
+from .models import UpdateFile, PrepareUpdate, EtalonInstance
 
 
-class EtaupdaterTestCase(APITestCase):
+class EtaupdaterTestCase(BaseTestCase):
     def setUp(self):
-        self.user = User.objects.create_user(
-            username='testuser', password='testpassword')
-        self.token = AccessToken.for_user(self.user)
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
+        super().setUp()
         self.host = Host.objects.create(
             name='test_host', ip=os.getenv('SSH_HOST1'), os='linux')
         ssh_credential = SSHCredential(username=os.getenv('SSH_USER'), port=22)
@@ -58,6 +53,23 @@ class EtaupdaterTestCase(APITestCase):
         }
         response = self.client.post(reverse('update-file-list'), data)
         update_file = UpdateFile.objects.first()
-        print(response.data)
         self.assertEqual(response.status_code, 201)
         os.remove(update_file.file.path)
+
+    def test_prepare_update(self):
+        with open("/app/test_files/good_update.tar.gz", 'rb') as f:
+            test_file = SimpleUploadedFile(name=f.name, content=f.read())
+        data_file = {"file": test_file}
+        self.client.post(reverse('update-file-list'), data_file)
+        data_instance = {
+            'path_to_instance': '/opt/jetalon',
+            'host': self.host.id,
+        }
+        self.client.post(reverse('etalon-instance-list'), data_instance)
+        update_file = UpdateFile.objects.first()
+        instance = EtalonInstance.objects.first()
+        prepare_update = PrepareUpdate.objects.create(
+            created_by=self.user,
+            update_file=update_file
+        )
+        prepare_update.instances.add(instance)

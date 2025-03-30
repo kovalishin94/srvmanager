@@ -6,13 +6,15 @@ from rest_framework_simplejwt.tokens import AccessToken
 from .models import SSHCredential, WinRMCredential
 
 
-class CoreTestCase(APITestCase):
+class BaseTestCase(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
             username='testuser', password='testpassword')
         self.token = AccessToken.for_user(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token}')
 
+
+class CoreTestCase(BaseTestCase):
     def create_ssh_credential(self, username='user', password='pass', hosts=None):
         if hosts is None:
             hosts = []
