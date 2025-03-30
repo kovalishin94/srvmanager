@@ -158,7 +158,7 @@ class SendFile(BaseOperation):
             self.add_log(
                 f'[{host.ip}] Нет указан файл для отправки.')
             return False
-
+        sftp = None
         try:
             client.connect(**connect_params)
             sftp = client.open_sftp()
