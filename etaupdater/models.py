@@ -22,6 +22,7 @@ class EtalonInstance(models.Model):
     tag = models.CharField(max_length=20, editable=False, blank=True)
     stand = models.CharField(max_length=255, editable=False, blank=True)
     is_valid = models.BooleanField(editable=False, default=False)
+    ready_to_update = models.BooleanField(editable=False, default=False)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -151,7 +152,9 @@ class PrepareUpdate(BaseOperation):
         self.add_log(
             'Начинается создание задач на выполнение команд подготовки к обновлению.')
         result = {}
-        for instance in EtalonInstance.objects.filter(id__in=instance_ids):
+        instances = EtalonInstance.objects.filter(id__in=instance_ids)
+
+        for instance in instances:
             execute_command = ExecuteCommand.objects.create(
                 created_by=self.created_by,
                 protocol='ssh',
@@ -166,3 +169,37 @@ class PrepareUpdate(BaseOperation):
                 f'Успешно создано {len(result)} задач на подготовку к обновлению.')
 
         return result
+
+    def create_task_to_pull_images(self, instance_ids: list) -> Dict[str, UUID]:
+        self.add_log(
+            'Начинается создание задач на выполнение команды docker pull.')
+        result = {}
+        instances = EtalonInstance.objects.filter(
+            id__in=instance_ids).distinct('host')
+
+        for instance in instances:
+            execute_command = ExecuteCommand.objects.create(
+                created_by=self.created_by,
+                protocol='ssh',
+                command=[
+                    f'cd {instance.path_to_instance}; docker compose pull -q',
+                    f'docker images | grep {self.update_file.version} | grep {self.update_file.tag} | wc -l'
+                ]
+            )
+            execute_command.hosts.add(instance.host)
+            result[str(execute_command.id)] = instance.id
+
+        if result:
+            self.add_log(
+                f'Успешно создано {len(result)} задач на скачивание докер образов.')
+
+        return result
+
+    def finish(self, instance_ids: list):
+        instances = EtalonInstance.objects.filter(id__in=instance_ids)
+        for instance in instances:
+            instance.ready_to_update = True
+            instance.save()
+
+        self.status = 'completed'
+        self.save()
