@@ -18,6 +18,7 @@ def check_results(results, operation_id: uuid, operation_type: str):
         if result == False:
             operation.status = 'error'
             operation.add_log('Операция завершена с ошибками.')
+            return
 
     operation.status = 'completed'
     operation.add_log('Операция успешно завершена.')
