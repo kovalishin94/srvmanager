@@ -55,7 +55,7 @@ class SSHCredential(Credential):
             'hostname': ip,
             'port': self.port,
             'username': self.username,
-            'timeout': 120.0
+            'timeout': 20.0
         }
         if self.ssh_key:
             connect_params['key_filename'] = self.ssh_key.path
