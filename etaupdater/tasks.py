@@ -28,28 +28,11 @@ def check_execute_command(self, execute_command_id: uuid, etalon_instance_id: in
 @shared_task(bind=True, max_retries=3)
 def check_pulling_images(self, prepare_update_id: uuid, pull_images_tasks_ids: dict):
     prepare_update = PrepareUpdate.objects.get(id=prepare_update_id)
-    pull_images_tasks = ExecuteCommand.objects.filter(
-        id__in=pull_images_tasks_ids.keys())
-
     try:
-        count_completed_tasks = 0
-        for operation in pull_images_tasks:
-            if operation.status == 'completed':
-                if not prepare_update.check_docker_images(list(operation.stdout.values()), operation.id):
-                    pull_images_tasks_ids.pop(str(operation.id))
-                    continue
-                count_completed_tasks += 1
-                continue
+        count_completed_tasks = prepare_update.check_operations(
+            pull_images_tasks_ids, 'third')
 
-            if operation.status == 'error':
-                prepare_update.add_log(
-                    f'Есть ошибки при скачивание докер образов. Id задачи - {operation.id}.')
-                removed_instance_id = pull_images_tasks_ids.pop(
-                    str(operation.id))
-                prepare_update.add_log(
-                    f'Для инстанса Эталона с Id - {removed_instance_id} подоготвка к обновлению окончена неудачно.')
-                continue
-
+        if count_completed_tasks is None:
             raise self.retry(exc=Exception(
                 'Имеются не завершенные задачи.'), countdown=10)
 
@@ -67,26 +50,16 @@ def check_pulling_images(self, prepare_update_id: uuid, pull_images_tasks_ids: d
 
 @shared_task(bind=True, max_retries=3)
 def check_preparing_update(self, prepare_update_id: uuid, execute_command_tasks_ids: dict):
+    """
+    Проверка выполнения команд разорхивирования. Второй этап подготовки к обновлению.
+    """
     prepare_update = PrepareUpdate.objects.get(id=prepare_update_id)
-    execute_command_tasks = ExecuteCommand.objects.filter(
-        id__in=execute_command_tasks_ids.keys())
-    try:
-        count_completed_tasks = 0
-        for operation in execute_command_tasks:
-            if operation.status == 'completed':
-                if not prepare_update.check_env(list(operation.stdout.values()), operation.id):
-                    execute_command_tasks_ids.pop(operation.id)
-                    continue
-                count_completed_tasks += 1
-                continue
-            if operation.status == 'error':
-                prepare_update.add_log(
-                    f'Есть ошибки при выполнении команды подготовки к обновлению. Id задачи - {operation.id}.')
-                removed_instance_id = execute_command_tasks_ids.pop(
-                    str(operation.id))
-                prepare_update.add_log(
-                    f'Для инстанса Эталона с Id - {removed_instance_id} подоготвка к обновлению окончена неудачно.')
 
+    try:
+        count_completed_tasks = prepare_update.check_operations(
+            execute_command_tasks_ids, 'second')
+
+        if count_completed_tasks is None:
             raise self.retry(exc=Exception(
                 'Имеются не завершенные задачи.'), countdown=10)
 
@@ -116,23 +89,12 @@ def check_sending_files(self, prepare_update_id: uuid, send_file_tasks_ids: dict
     Проверка выполнения созданных задач SendFile. Первый этап подготовки к обновлению.
     """
     prepare_update = PrepareUpdate.objects.get(id=prepare_update_id)
-    send_files_tasks = SendFile.objects.filter(
-        id__in=send_file_tasks_ids.keys())
-    try:
-        count_completed_tasks = 0
-        for operation in send_files_tasks:
-            if operation.status == 'completed':
-                count_completed_tasks += 1
-                continue
-            if operation.status == 'error':
-                prepare_update.add_log(
-                    f'Есть ошибки при отправке файла обновления. Id задачи - {operation.id}.')
-                removed_instance_id = send_file_tasks_ids.pop(
-                    str(operation.id))
-                prepare_update.add_log(
-                    f'Для инстанса Эталона с Id - {removed_instance_id} подоготвка к обновлению окончена неудачно.')
-                continue
 
+    try:
+        count_completed_tasks = prepare_update.check_operations(
+            send_file_tasks_ids, 'first')
+
+        if count_completed_tasks is None:
             raise self.retry(exc=Exception(
                 'Имеются не завершенные задачи.'), countdown=10)
 

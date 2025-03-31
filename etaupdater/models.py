@@ -2,7 +2,7 @@ import os
 import tarfile
 
 from uuid import UUID
-from typing import Dict
+from typing import Dict, Callable, Tuple
 from datetime import datetime
 from django.db import models
 from django.core.validators import FileExtensionValidator
@@ -127,38 +127,78 @@ class PrepareUpdate(BaseOperation):
     update_file = models.ForeignKey(
         UpdateFile, on_delete=models.SET_NULL, null=True)
 
-    def check_docker_images(self, stdout: list, id: UUID) -> bool:
+    def get_operation_type_by_stage(self, stage: str) -> Tuple[BaseOperation, Callable]:
+        OPERATION_TYPES_AND_CHECKS = {
+            'first': (SendFile, lambda *a: True),
+            'second': (ExecuteCommand, self.check_env),
+            'third': (ExecuteCommand, self.check_docker_images)
+        }
+        return OPERATION_TYPES_AND_CHECKS[stage]
+
+    def check_operations(self, ids: dict, stage: str) -> int | None:
+        operation_type, check_function = self.get_operation_type_by_stage(
+            stage)
+        operations = operation_type.objects.filter(id__in=ids)
+        count_completed_tasks = 0
+        for operation in operations:
+            if operation.status == 'completed':
+                if not check_function(operation):
+                    ids.pop(operation.id)
+                    continue
+                count_completed_tasks += 1
+                continue
+            if operation.status == 'error':
+                removed_instance_id = ids.pop(str(operation.id))
+                self.add_log(
+                    f'''Есть ошибки при выполнении операции с Id - {operation.id}. 
+                    Для инстанса Эталона с Id - {removed_instance_id} подоготвка к обновлению окончена неудачно.''')
+                continue
+            return
+        return count_completed_tasks
+
+    def check_docker_images(self, operation: ExecuteCommand) -> bool:
         """
         Проверка количества докер образов с новой версией.
         """
+        if not isinstance(operation, ExecuteCommand):
+            return
+
+        stdout = list(operation.stdout.values())
+
         if not stdout:
             self.add_log(
-                f'Не корректный вывод docker images. Id операции - {id}')
+                f'Не корректный вывод docker images. Id операции - {operation.id}')
             return False
         if int(stdout[-1]) != settings.ETALON_DOCKER_IMAGES_COUNT:
             self.add_log(
-                f'Количество докер образов с новой версией не соответствует. Id операции - {id}')
+                f'Количество докер образов с новой версией не соответствует. Id операции - {operation.id}')
             return False
         return True
 
-    def check_env(self, stdout: list, id: UUID) -> bool:
+    def check_env(self, operation: ExecuteCommand) -> bool:
         """
         Проверка вывода .env после выполнения ./prepare_update.sh, с целью убедиться в соответствии
         версии и тега файлу обновления UpdateFile.
         """
+        if not isinstance(operation, ExecuteCommand):
+            return
+
+        stdout = list(operation.stdout.values())
+
         if len(stdout) != 3:
-            self.add_log(f'Не корректный вывод файла .env. Id операции - {id}')
+            self.add_log(
+                f'Не корректный вывод файла .env. Id операции - {operation.id}')
             return False
 
         env_conf = UpdateFile.parse_config(stdout[-1])
         if self.update_file.version != env_conf.get('BRANCH'):
             self.add_log(
-                f'Версия файла обнолвения и версия в .env не соответствуют. Смотрите фоновую {id}.')
+                f'Версия файла обнолвения и версия в .env не соответствуют. Смотрите фоновую {operation.id}.')
             return False
 
         if self.update_file.tag != env_conf.get('TAG'):
             self.add_log(
-                f'Тег файла обнолвения и тег в .env не соответствуют. Смотрите фоновую {id}.')
+                f'Тег файла обнолвения и тег в .env не соответствуют. Смотрите фоновую {operation.id}.')
             return False
 
         return True
