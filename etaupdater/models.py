@@ -7,6 +7,7 @@ from datetime import datetime
 from django.db import models
 from django.core.validators import FileExtensionValidator
 from django.contrib.auth.models import User
+from django.conf import settings
 
 from core.models import Host
 from ops.models import ExecuteCommand, BaseOperation, SendFile
@@ -14,6 +15,9 @@ from .validators import path_validator, update_file_validator
 
 
 class EtalonInstance(models.Model):
+    """
+    Площадка Эталона 3
+    """
     url = models.URLField(editable=False, blank=True)
     path_to_instance = models.TextField(validators=[path_validator])
     host = models.ForeignKey(
@@ -59,6 +63,9 @@ class EtalonInstance(models.Model):
 
 
 class UpdateFile(models.Model):
+    """
+    Файл обновления Эталона 3
+    """
     file = models.FileField(upload_to='updates/%Y/%m/',
                             validators=[
                                 FileExtensionValidator(
@@ -106,12 +113,44 @@ class UpdateFile(models.Model):
 
 
 class PrepareUpdate(BaseOperation):
+    """
+    Операция подготовки к обновлению площадки Эталона 3. Состоит из нескольких этапов:
+
+    1) Отправка файла обновления UpdateFile на площадки эталона, путем создания экземпляров класса SendFile.
+    2) Выполнение команды разархивирования и запуск ./prepare_update.sh путем создания экземпляров класса ExecuteCommand.
+    3) Загрузка образов docker путем выполнения команды docker compose pull -q, также созданием ExecuteCommand.
+
+    Логика построена таким образом, что при ошибках на одном из этапов PrepareUpdate - в дальнейших этапах отбрасываются только
+    площадки с ошибками.
+    """
     instances = models.ManyToManyField(EtalonInstance)
     update_file = models.ForeignKey(
         UpdateFile, on_delete=models.SET_NULL, null=True)
 
-    def check_env(self, stdout: str, id: UUID):
-        env_conf = UpdateFile.parse_config(stdout)
+    def check_docker_images(self, stdout: list, id: UUID) -> bool:
+        """
+        Проверка количества докер образов с новой версией.
+        """
+        if not stdout:
+            self.add_log(
+                f'Не корректный вывод docker images. Id операции - {id}')
+            return False
+        if int(stdout[-1]) != settings.ETALON_DOCKER_IMAGES_COUNT:
+            self.add_log(
+                f'Количество докер образов с новой версией не соответствует. Id операции - {id}')
+            return False
+        return True
+
+    def check_env(self, stdout: list, id: UUID) -> bool:
+        """
+        Проверка вывода .env после выполнения ./prepare_update.sh, с целью убедиться в соответствии
+        версии и тега файлу обновления UpdateFile.
+        """
+        if len(stdout) != 3:
+            self.add_log(f'Не корректный вывод файла .env. Id операции - {id}')
+            return False
+
+        env_conf = UpdateFile.parse_config(stdout[-1])
         if self.update_file.version != env_conf.get('BRANCH'):
             self.add_log(
                 f'Версия файла обнолвения и версия в .env не соответствуют. Смотрите фоновую {id}.')
@@ -125,6 +164,9 @@ class PrepareUpdate(BaseOperation):
         return True
 
     def create_tasks_to_send_file(self) -> Dict[str, UUID]:
+        """
+        Первый этап PrepareUpdate - отправка файла обновления в директории площадок Эталона.
+        """
         self.add_log('Начинается создание задач на отправку файла обновления.')
         result = {}
         for instance in self.instances.all():
@@ -149,6 +191,10 @@ class PrepareUpdate(BaseOperation):
         return result
 
     def create_tasks_to_prepare_update(self, instance_ids: list) -> Dict[str, UUID]:
+        """
+        Второй этап PrepareUpdate - разорхивирование файла обновления в директории Эталона 3,
+        выполнение ./prepare_update.sh и проверка корректности выполнения команд.
+        """
         self.add_log(
             'Начинается создание задач на выполнение команд подготовки к обновлению.')
         result = {}
@@ -171,6 +217,9 @@ class PrepareUpdate(BaseOperation):
         return result
 
     def create_task_to_pull_images(self, instance_ids: list) -> Dict[str, UUID]:
+        """
+        Третий этап PrepareUpdate - pulling docker образов и проверка их количества.
+        """
         self.add_log(
             'Начинается создание задач на выполнение команды docker pull.')
         result = {}
@@ -202,4 +251,4 @@ class PrepareUpdate(BaseOperation):
             instance.save()
 
         self.status = 'completed'
-        self.save()
+        self.add_log('Подготовка к обновлению завершена.')
