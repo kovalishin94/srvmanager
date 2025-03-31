@@ -33,6 +33,10 @@ class BaseOperation(models.Model):
         print(self.id, message)
         self.save()
 
+    def error_log(self, message: str) -> None:
+        self.status = 'error'
+        self.add_log('[ERROR] ' + message)
+
     class Meta:
         abstract = True
 
