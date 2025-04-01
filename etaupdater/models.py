@@ -128,37 +128,36 @@ class PrepareUpdate(BaseOperation):
     update_file = models.ForeignKey(
         UpdateFile, on_delete=models.SET_NULL, null=True)
 
-    def get_operation_type_by_stage(self, stage: str) -> Tuple[Type[BaseOperation], Callable]:
-        operation_types_and_checks_by_stage = {
-            'first': (SendFile, lambda *a: True),
-            'second': (ExecuteCommand, self.check_env),
-            'third': (ExecuteCommand, self.check_docker_images)
-        }
-        return operation_types_and_checks_by_stage[stage]
-
     def get_stage_conf(self, stage: str) -> dict:
         fn_by_stage = {
             'first': {
                 'next_fn': self.create_tasks_to_prepare_update,
                 'next_stage': 'second',
-                'stage_full_name': 'отправки файлов обновления'
+                'stage_full_name': 'отправки файлов обновления',
+                'operation_type': SendFile,
+                'check': lambda *a: True
             },
             'second': {
                 'next_fn': self.create_task_to_pull_images,
                 'next_stage': 'third',
-                'stage_full_name': 'разархивирования и prepare_update.sh'
+                'stage_full_name': 'разархивирования и prepare_update.sh',
+                'operation_type': ExecuteCommand,
+                'check': self.check_env
             },
             'third': {
                 'next_fn': self.finish,
                 'next_stage': None,
-                'stage_full_name': 'скачивания докер образов'
+                'stage_full_name': 'скачивания докер образов',
+                'operation_type': ExecuteCommand,
+                'check': self.check_docker_images
             }
         }
         return fn_by_stage[stage]
 
     def check_operations(self, ids: dict, stage: str) -> int | None:
-        operation_type, check_function = self.get_operation_type_by_stage(
-            stage)
+        stage_conf = self.get_stage_conf(stage)
+        operation_type = stage_conf['operation_type']
+        check_function = stage_conf['check']
         operations = operation_type.objects.filter(id__in=ids)
         count_completed_tasks = 0
         for operation in operations:

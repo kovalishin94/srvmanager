@@ -26,6 +26,9 @@ def check_execute_command(self, execute_command_id: uuid, etalon_instance_id: in
 
 @shared_task(bind=True, max_retries=3)
 def process_stage(self, prepare_update_id: uuid, tasks_ids: dict, stage: str = 'first'):
+    """
+
+    """
     prepare_update = PrepareUpdate.objects.get(id=prepare_update_id)
     stage_conf = prepare_update.get_stage_conf(stage)
     stage_full_name = stage_conf.get('stage_full_name')
