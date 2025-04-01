@@ -21,7 +21,7 @@ def check_execute_command(self, execute_command_id: uuid, etalon_instance_id: in
 
         etalon_instance.apply_params(list(execute_command.stdout.values())[-1])
 
-    except:
+    except MaxRetriesExceededError:
         etalon_instance.is_valid = False
 
 
@@ -43,7 +43,7 @@ def check_pulling_images(self, prepare_update_id: uuid, pull_images_tasks_ids: d
 
         prepare_update.finish(list(pull_images_tasks_ids.values()))
 
-    except MaxRetriesExceededError as exc:
+    except MaxRetriesExceededError:
         prepare_update.error_log(
             'Не получилось выполнить команды скачивания докер образов. Подробности смотрите в логах фоновых ExecuteCommand.')
 
@@ -51,7 +51,7 @@ def check_pulling_images(self, prepare_update_id: uuid, pull_images_tasks_ids: d
 @shared_task(bind=True, max_retries=3)
 def check_preparing_update(self, prepare_update_id: uuid, execute_command_tasks_ids: dict):
     """
-    Проверка выполнения команд разорхивирования. Второй этап подготовки к обновлению.
+    Проверка выполнения команд разархивирования. Второй этап подготовки к обновлению.
     """
     prepare_update = PrepareUpdate.objects.get(id=prepare_update_id)
 
@@ -78,7 +78,7 @@ def check_preparing_update(self, prepare_update_id: uuid, execute_command_tasks_
 
         check_pulling_images.delay(prepare_update_id, pull_images_tasks_ids)
 
-    except MaxRetriesExceededError as exc:
+    except MaxRetriesExceededError:
         prepare_update.error_log(
             'Не получилось выполнить команды подготовки к обновлению. Подробности смотрите в логах фоновых ExecuteCommand.')
 

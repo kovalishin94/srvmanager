@@ -31,7 +31,7 @@ class EtaupdaterTestCase(BaseTestCase):
             'path_to_instance': '/opt/jetalon',
             'host': self.host.id,
         }
-        id = self.client.post(
+        etalon_instance_id = self.client.post(
             reverse('etalon-instance-list'), data).data.get('id')
         response_get = self.client.get(reverse('etalon-instance-list'))
 
@@ -40,7 +40,7 @@ class EtaupdaterTestCase(BaseTestCase):
             'host': self.host.id,
         }
         response_update = self.client.put(
-            reverse('etalon-instance-detail', args=[id]), data_updated)
+            reverse('etalon-instance-detail', args=[etalon_instance_id]), data_updated)
         self.assertEqual(response_get.status_code, 200)
         self.assertEqual(len(response_get.data), 1)
         self.assertEqual(response_update.data.get('path_to_instance'), '/opt')

@@ -37,7 +37,7 @@ def prepare_update_post_save(sender, instance: PrepareUpdate, action, **kwargs):
     if not send_file_tasks_ids:
         instance.status = 'error'
         instance.add_log(
-            'Не созадлось ни одной задачи по отправке файла обновления. Статус обновления - ошибка.')
+            'Не создалось ни одной задачи по отправке файла обновления. Статус обновления - ошибка.')
         return
 
     check_sending_files.apply_async(

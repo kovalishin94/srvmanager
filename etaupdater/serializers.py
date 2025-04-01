@@ -3,7 +3,7 @@ from rest_framework import serializers
 from .models import EtalonInstance, UpdateFile
 
 
-class EtalonInstancesSrializer(serializers.ModelSerializer):
+class EtalonInstancesSerializer(serializers.ModelSerializer):
     class Meta:
         model = EtalonInstance
         fields = [

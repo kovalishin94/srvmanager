@@ -1,12 +1,12 @@
 from rest_framework import viewsets, mixins
 
 from .models import EtalonInstance, UpdateFile
-from .serializers import EtalonInstancesSrializer, UpdateFileSerializer
+from .serializers import EtalonInstancesSerializer, UpdateFileSerializer
 
 
 class EtalonInstanceViewSet(viewsets.ModelViewSet):
     queryset = EtalonInstance.objects.all()
-    serializer_class = EtalonInstancesSrializer
+    serializer_class = EtalonInstancesSerializer
 
 
 class UpdateFileViewSet(mixins.CreateModelMixin,

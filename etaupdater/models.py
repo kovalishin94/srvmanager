@@ -2,7 +2,7 @@ import os
 import tarfile
 
 from uuid import UUID
-from typing import Dict, Callable, Tuple
+from typing import Dict, Callable, Tuple, Type
 from datetime import datetime
 from django.db import models
 from django.core.validators import FileExtensionValidator
@@ -112,6 +112,7 @@ class UpdateFile(models.Model):
         super().delete(*args, **kwargs)
 
 
+# noinspection GrazieInspection
 class PrepareUpdate(BaseOperation):
     """
     Операция подготовки к обновлению площадки Эталона 3. Состоит из нескольких этапов:
@@ -127,13 +128,13 @@ class PrepareUpdate(BaseOperation):
     update_file = models.ForeignKey(
         UpdateFile, on_delete=models.SET_NULL, null=True)
 
-    def get_operation_type_by_stage(self, stage: str) -> Tuple[BaseOperation, Callable]:
-        OPERATION_TYPES_AND_CHECKS = {
+    def get_operation_type_by_stage(self, stage: str) -> Tuple[Type[BaseOperation], Callable]:
+        operation_types_and_checks_by_stage = {
             'first': (SendFile, lambda *a: True),
             'second': (ExecuteCommand, self.check_env),
             'third': (ExecuteCommand, self.check_docker_images)
         }
-        return OPERATION_TYPES_AND_CHECKS[stage]
+        return operation_types_and_checks_by_stage[stage]
 
     def check_operations(self, ids: dict, stage: str) -> int | None:
         operation_type, check_function = self.get_operation_type_by_stage(
@@ -149,19 +150,20 @@ class PrepareUpdate(BaseOperation):
                 continue
             if operation.status == 'error':
                 removed_instance_id = ids.pop(str(operation.id))
+                # noinspection SpellCheckingInspection
                 self.add_log(
                     f'''Есть ошибки при выполнении операции с Id - {operation.id}. 
                     Для инстанса Эталона с Id - {removed_instance_id} подоготвка к обновлению окончена неудачно.''')
                 continue
-            return
+            return None
         return count_completed_tasks
 
-    def check_docker_images(self, operation: ExecuteCommand) -> bool:
+    def check_docker_images(self, operation: ExecuteCommand) -> bool | None:
         """
         Проверка количества докер образов с новой версией.
         """
         if not isinstance(operation, ExecuteCommand):
-            return
+            return None
 
         stdout = list(operation.stdout.values())
 
@@ -175,13 +177,13 @@ class PrepareUpdate(BaseOperation):
             return False
         return True
 
-    def check_env(self, operation: ExecuteCommand) -> bool:
+    def check_env(self, operation: ExecuteCommand) -> bool | None:
         """
         Проверка вывода .env после выполнения ./prepare_update.sh, с целью убедиться в соответствии
-        версии и тега файлу обновления UpdateFile.
+        версией и тега файлу обновления UpdateFile.
         """
         if not isinstance(operation, ExecuteCommand):
-            return
+            return None
 
         stdout = list(operation.stdout.values())
 
@@ -193,12 +195,12 @@ class PrepareUpdate(BaseOperation):
         env_conf = UpdateFile.parse_config(stdout[-1])
         if self.update_file.version != env_conf.get('BRANCH'):
             self.add_log(
-                f'Версия файла обнолвения и версия в .env не соответствуют. Смотрите фоновую {operation.id}.')
+                f'Версия файла обновления и версия в .env не соответствуют. Смотрите фоновую {operation.id}.')
             return False
 
         if self.update_file.tag != env_conf.get('TAG'):
             self.add_log(
-                f'Тег файла обнолвения и тег в .env не соответствуют. Смотрите фоновую {operation.id}.')
+                f'Тег файла обновления и тег в .env не соответствуют. Смотрите фоновую {operation.id}.')
             return False
 
         return True
@@ -232,7 +234,7 @@ class PrepareUpdate(BaseOperation):
 
     def create_tasks_to_prepare_update(self, instance_ids: list) -> Dict[str, UUID]:
         """
-        Второй этап PrepareUpdate - разорхивирование файла обновления в директории Эталона 3,
+        Второй этап PrepareUpdate - разархивирование файла обновления в директории Эталона 3,
         выполнение ./prepare_update.sh и проверка корректности выполнения команд.
         """
         self.add_log(
