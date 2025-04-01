@@ -7,6 +7,9 @@ from .models import EtalonInstance, PrepareUpdate
 
 @shared_task(bind=True, max_retries=3)
 def check_execute_command(self, execute_command_id: uuid, etalon_instance_id: int):
+    """
+    Проверка выполнения операции получения данных о площадке при создании EtalonInstance.
+    """
     execute_command = ExecuteCommand.objects.get(id=execute_command_id)
     etalon_instance = EtalonInstance.objects.get(id=etalon_instance_id)
     try:
@@ -24,10 +27,10 @@ def check_execute_command(self, execute_command_id: uuid, etalon_instance_id: in
         etalon_instance.is_valid = False
 
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(bind=True, max_retries=5)
 def process_stage(self, prepare_update_id: uuid, tasks_ids: dict, stage: str = 'first'):
     """
-
+    Задача по отработке каждой стадии выполнения PrepareUpdate.
     """
     prepare_update = PrepareUpdate.objects.get(id=prepare_update_id)
     stage_conf = prepare_update.get_stage_conf(stage)
@@ -38,7 +41,7 @@ def process_stage(self, prepare_update_id: uuid, tasks_ids: dict, stage: str = '
 
         if count_completed_tasks is None:
             raise self.retry(exc=Exception(
-                'Имеются не завершенные задачи.'), countdown=10)
+                'Имеются не завершенные задачи.'), countdown=60)
 
         if count_completed_tasks == 0:
             prepare_update.error_log(
