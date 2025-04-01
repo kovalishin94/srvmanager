@@ -136,6 +136,26 @@ class PrepareUpdate(BaseOperation):
         }
         return operation_types_and_checks_by_stage[stage]
 
+    def get_stage_conf(self, stage: str) -> dict:
+        fn_by_stage = {
+            'first': {
+                'next_fn': self.create_tasks_to_prepare_update,
+                'next_stage': 'second',
+                'stage_full_name': 'отправки файлов обновления'
+            },
+            'second': {
+                'next_fn': self.create_task_to_pull_images,
+                'next_stage': 'third',
+                'stage_full_name': 'разархивирования и prepare_update.sh'
+            },
+            'third': {
+                'next_fn': self.finish,
+                'next_stage': None,
+                'stage_full_name': 'скачивания докер образов'
+            }
+        }
+        return fn_by_stage[stage]
+
     def check_operations(self, ids: dict, stage: str) -> int | None:
         operation_type, check_function = self.get_operation_type_by_stage(
             stage)
@@ -150,10 +170,9 @@ class PrepareUpdate(BaseOperation):
                 continue
             if operation.status == 'error':
                 removed_instance_id = ids.pop(str(operation.id))
-                # noinspection SpellCheckingInspection
                 self.add_log(
                     f'''Есть ошибки при выполнении операции с Id - {operation.id}. 
-                    Для инстанса Эталона с Id - {removed_instance_id} подоготвка к обновлению окончена неудачно.''')
+                    Для инстанса Эталона с Id - {removed_instance_id} подготовка к обновлению окончена неудачно.''')
                 continue
             return None
         return count_completed_tasks

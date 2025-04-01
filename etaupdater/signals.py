@@ -2,7 +2,7 @@ from django.dispatch import receiver
 from django.db.models.signals import post_save, m2m_changed
 
 from .models import EtalonInstance, UpdateFile, PrepareUpdate
-from .tasks import check_execute_command, check_sending_files
+from .tasks import check_execute_command, process_stage
 
 
 @receiver(post_save, sender=EtalonInstance)
@@ -40,7 +40,6 @@ def prepare_update_post_save(sender, instance: PrepareUpdate, action, **kwargs):
             'Не создалось ни одной задачи по отправке файла обновления. Статус обновления - ошибка.')
         return
 
-    check_sending_files.apply_async(
-        args=[instance.id, send_file_tasks_ids],
-        countdown=10
+    process_stage.apply_async(
+        args=[instance.id, send_file_tasks_ids], countdown=10
     )
