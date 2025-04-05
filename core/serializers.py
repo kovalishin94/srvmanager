@@ -7,7 +7,15 @@ from .models import Host, SSHCredential, WinRMCredential
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'is_staff', 'is_active', 'is_superuser']
+        fields = [
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'is_active',
+            'is_staff',
+            'is_superuser']
 
 class HostSerializer(serializers.ModelSerializer):
     class Meta:
