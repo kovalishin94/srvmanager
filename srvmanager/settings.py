@@ -1,4 +1,6 @@
 import os
+import ldap
+from django_auth_ldap.config import LDAPSearch, GroupOfNamesType
 from datetime import timedelta
 from pathlib import Path
 
@@ -31,6 +33,37 @@ SECRET_KEY = os.getenv('SECRET')
 DEBUG = get_bool_env('DEBUG', False)
 
 ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['*'])
+
+AUTHENTICATION_BACKENDS = [
+    'django_auth_ldap.backend.LDAPBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# LDAP SETTING
+AUTH_LDAP_SERVER_URI = os.getenv('AUTH_LDAP_SERVER_URI')
+AUTH_LDAP_BIND_DN = os.getenv('AUTH_LDAP_BIND_DN')
+AUTH_LDAP_BIND_PASSWORD = os.getenv('AUTH_LDAP_BIND_PASSWORD')
+AUTH_LDAP_USER_SEARCH = LDAPSearch(
+    os.getenv('AUTH_LDAP_USER_SEARCH'),
+    ldap.SCOPE_SUBTREE,
+    '(sAMAccountName=%(user)s)',
+)
+AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
+    os.getenv('AUTH_LDAP_GROUP_SEARCH'),
+    ldap.SCOPE_SUBTREE,
+    '(objectClass=groupOfNames)',
+)
+AUTH_LDAP_GROUP_TYPE = GroupOfNamesType()
+AUTH_LDAP_USER_ATTR_MAP = {
+    'first_name': 'givenName',
+    'last_name': 'sn',
+    'email': 'mail',
+}
+AUTH_LDAP_USER_FLAGS_BY_GROUP = {
+    "is_active": os.getenv('AUTH_LDAP_USER_IS_ACTIVE'),
+    "is_staff": os.getenv('AUTH_LDAP_USER_IS_STAFF'),
+    "is_superuser": os.getenv('AUTH_LDAP_USER_IS_SUPERUSER'),
+}
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -65,6 +98,7 @@ REST_FRAMEWORK = {
     )
 }
 
+# Simple JWT
 ACCESS_TOKEN_LIFETIME = timedelta(
     minutes=get_int_env('ACCESS_TOKEN_LIFETIME', 5))
 REFRESH_TOKEN_LIFETIME = timedelta(
@@ -92,7 +126,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'srvmanager.wsgi.application'
 
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -103,7 +136,6 @@ DATABASES = {
         'NAME': os.getenv('POSTGRES_DB'),
     }
 }
-
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -120,7 +152,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 LANGUAGE_CODE = 'ru'
 
 TIME_ZONE = 'Asia/Krasnoyarsk'
@@ -133,14 +164,12 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# CELERY
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL')
-
 CELERY_RESULT_BACKEND = os.getenv('CELERY_BROKER_URL')
-
 CELERY_TIMEZONE = 'Asia/Krasnoyarsk'
-
 CELERY_TASK_ALWAYS_EAGER = get_bool_env('DEBUG', False)
-
 CELERY_TASK_EAGER_PROPAGATES = get_bool_env('DEBUG', False)
 
+# ETAUPDATER
 ETALON_DOCKER_IMAGES_COUNT = get_int_env('ETALON_DOCKER_IMAGES_COUNT', 7)
