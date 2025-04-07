@@ -14,7 +14,7 @@ class ExecuteCommandSerializer(BaseOperationSerializer):
     class Meta:
         model = ExecuteCommand
         fields = BaseOperationSerializer.Meta.fields + \
-            ['hosts', 'command', 'protocol', 'stdout', 'stderr']
+            ['hosts', 'command', 'protocol', 'sudo', 'stdout', 'stderr']
 
 
 class SendFileSerializer(BaseOperationSerializer):

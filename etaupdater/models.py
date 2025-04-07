@@ -266,7 +266,8 @@ class PrepareUpdate(BaseOperation):
                 protocol='ssh',
                 command=[f'cd {instance.path_to_instance}; tar xvf update_jetalon.tar.gz',
                          f'cd {instance.path_to_instance}; ./prepare_update.sh',
-                         f'cat {instance.path_to_instance}/.env']
+                         f'cat {instance.path_to_instance}/.env'],
+                sudo=True
             )
             execute_command.hosts.add(instance.host)
             result[str(execute_command.id)] = instance.id
@@ -293,7 +294,8 @@ class PrepareUpdate(BaseOperation):
                 command=[
                     f'cd {instance.path_to_instance}; docker compose pull -q',
                     f'docker images | grep {self.update_file.version} | grep {self.update_file.tag} | wc -l'
-                ]
+                ],
+                sudo=True
             )
             execute_command.hosts.add(instance.host)
             result[str(execute_command.id)] = instance.id

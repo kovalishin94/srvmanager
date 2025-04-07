@@ -49,6 +49,7 @@ class ExecuteCommand(BaseOperation):
     hosts = models.ManyToManyField(Host, blank=True)
     command = models.JSONField(validators=[validate_command])
     protocol = models.CharField(max_length=10, choices=PROTOCOL_CHOICES)
+    sudo = models.BooleanField(default=False)
     stdout = models.JSONField(blank=True, default=dict, editable=False)
     stderr = models.JSONField(blank=True, default=dict, editable=False)
 
@@ -86,8 +87,10 @@ class ExecuteCommand(BaseOperation):
 
         return True
 
-    def run_ssh_command(self, client: paramiko.SSHClient, ip: str):
+    def run_ssh_command(self, client: paramiko.SSHClient, ip: str, password: str | None = None):
         for command in self.command:
+            if password and self.sudo:
+                command = f'echo {password} | sudo -S {command}'
             stdin, stdout, stderr = client.exec_command(command)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             key = f'{timestamp} [{ip}]'
@@ -99,8 +102,8 @@ class ExecuteCommand(BaseOperation):
                 self.stderr[key] = stderr
             self.save()
 
-    def run_ssh(self, host: Host) -> bool:
-        ssh_credential: SSHCredential = host.sshcredential_set.first()
+    def run_ssh(self, host: Host) -> bool | None:
+        ssh_credential = host.sshcredential_set.first()
         if not ssh_credential:
             self.add_log(
                 f'[{host.ip}] Нет учетных записей для выполнения команды.')
@@ -112,7 +115,7 @@ class ExecuteCommand(BaseOperation):
 
         try:
             client.connect(**connect_params)
-            self.run_ssh_command(client, host.ip)
+            self.run_ssh_command(client, host.ip, connect_params.get('password'))
             self.add_log(f'[{host.ip}]Команда выполнена.')
         except Exception as e:
             self.add_log(
@@ -142,11 +145,11 @@ class SendFile(BaseOperation):
     target_path = models.TextField(validators=[path_validator])
     file = models.FileField(upload_to='files_to_send/%Y/%m/', blank=True)
 
-    def send_sftp_file(self, host: Host) -> bool:
+    def send_sftp_file(self, host: Host) -> bool | None:
         ssh_credential: SSHCredential = host.sshcredential_set.first()
         if not ssh_credential:
             self.add_log(
-                f'[{host.ip}] Нет учетных записей для отправлки файла.')
+                f'[{host.ip}] Нет учетных записей для отправки файла.')
             return False
 
         client = paramiko.SSHClient()
