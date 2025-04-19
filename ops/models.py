@@ -1,6 +1,7 @@
 import uuid
 import winrm
 import paramiko
+from typing import Callable, Any
 
 from django.db import models
 from datetime import datetime
@@ -128,10 +129,11 @@ class ExecuteCommand(BaseOperation):
 
     def run(self, host_id: int):
         host = Host.objects.get(id=host_id)
-        if self.protocol == 'winrm':
-            return self.run_winrm(host)
-        if self.protocol == 'ssh':
-            return self.run_ssh(host)
+        method: dict[str, Callable[[Host], Any]] = {
+            'winrm': self.run_winrm,
+            'ssh': self.run_ssh,
+        }
+        return method[self.protocol](host)
 
 
 class SendFile(BaseOperation):
