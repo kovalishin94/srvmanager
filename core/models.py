@@ -18,8 +18,8 @@ class Host(models.Model):
         ('windows', 'Windows'),
     )
 
-    name = models.CharField(max_length=80)
-    ip = models.GenericIPAddressField(unique=True)
+    name = models.CharField(max_length=80, unique=True)
+    ip = models.GenericIPAddressField()
     os = models.CharField(max_length=10, choices=OS_CHOICES)
 
     def __str__(self):
