@@ -19,14 +19,26 @@ class OpsTestCase(BaseTestCase):
         winrm_credential.host.add(self.winrm_host1, self.winrm_host2)
 
         self.ssh_host1 = Host.objects.create(
-            name='test_host', ip=os.getenv('SSH_HOST1'), os='linux')
+            name='test_host3', ip=os.getenv('SSH_HOST1'), os='linux')
         self.ssh_host2 = Host.objects.create(
-            name='test_host2', ip=os.getenv('SSH_HOST2'), os='linux')
+            name='test_host4', ip=os.getenv('SSH_HOST2'), os='linux')
         ssh_credential = SSHCredential.objects.create(
             username=os.getenv('SSH_USER'))
         ssh_credential.set_password(os.getenv('SSH_PASSWORD'))
         ssh_credential.save()
         ssh_credential.host.add(self.ssh_host1, self.ssh_host2)
+
+    def create_execute_command(self, data1, data2):
+        response_create1 = self.client.post(
+            reverse('execute-command-list'), data1)
+        response_create2 = self.client.post(
+            reverse('execute-command-list'), data2)
+        response_get = self.client.get(reverse('execute-command-list'))
+
+        self.assertEqual(response_create1.status_code, 201)
+        self.assertEqual(response_create2.status_code, 201)
+        self.assertEqual(response_get.status_code, 200)
+        self.assertEqual(len(response_get.data), 2)
 
     def test_execute_winrm_command_create_list(self):
         data1 = {
@@ -43,16 +55,7 @@ class OpsTestCase(BaseTestCase):
             'created_by': self.user.id
         }
 
-        response_create1 = self.client.post(
-            reverse('execute-command-list'), data1)
-        response_create2 = self.client.post(
-            reverse('execute-command-list'), data2)
-        response_get = self.client.get(reverse('execute-command-list'))
-
-        self.assertEqual(response_create1.status_code, 201)
-        self.assertEqual(response_create2.status_code, 201)
-        self.assertEqual(response_get.status_code, 200)
-        self.assertEqual(len(response_get.data), 2)
+        self.create_execute_command(data1, data2)
 
     def test_execute_ssh_command_create_list(self):
         data1 = {
@@ -69,19 +72,11 @@ class OpsTestCase(BaseTestCase):
             'created_by': self.user.id
         }
 
-        response_create1 = self.client.post(
-            reverse('execute-command-list'), data1)
-        response_create2 = self.client.post(
-            reverse('execute-command-list'), data2)
-        response_get = self.client.get(reverse('execute-command-list'))
-        self.assertEqual(response_create1.status_code, 201)
-        self.assertEqual(response_create2.status_code, 201)
-        self.assertEqual(response_get.status_code, 200)
-        self.assertEqual(len(response_get.data), 2)
+        self.create_execute_command(data1, data2)
 
     def test_execute_command_delete(self):
         host = Host.objects.create(
-            name='test_host', ip='192.168.0.1', os='windows')
+            name='test_host_delete', ip='192.168.0.1', os='windows')
 
         data1 = {
             'command': '["ping 8.8.8.8"]',

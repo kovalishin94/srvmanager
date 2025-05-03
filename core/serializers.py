@@ -62,43 +62,37 @@ class WinRMCredentialSerializer(CredentialSerializer):
         model = WinRMCredential
         fields = CredentialSerializer.Meta.fields + ['port', 'ssl']
 
-
 class HostSerializer(serializers.ModelSerializer):
-    ssh_credentials_ids = serializers.PrimaryKeyRelatedField(
+    ssh_credentials = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=SSHCredential.objects.all(),
-        write_only= True,
         source='sshcredential_set',
         required=False,
         allow_empty=True
     )
-    ssh_credentials = SSHCredentialSerializer(many=True, read_only=True, source='sshcredential_set')
-    winrm_credentials_ids = serializers.PrimaryKeyRelatedField(
+    winrm_credentials = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=WinRMCredential.objects.all(),
-        write_only= True,
         source='winrmcredential_set',
         required=False,
         allow_empty=True
     )
-    winrm_credentials = WinRMCredentialSerializer(many=True, read_only=True, source='winrmcredential_set')
-
 
     class Meta:
         model = Host
-        fields = ['id', 'name', 'ip', 'os', 'ssh_credentials', 'ssh_credentials_ids', 'winrm_credentials', 'winrm_credentials_ids']
+        fields = ['id', 'name', 'ip', 'os', 'ssh_credentials', 'winrm_credentials']
 
     def create(self, validated_data):
-        ssh_credentials = validated_data.pop('ssh_credentials_ids', [])
-        winrm_credentials = validated_data.pop('winrm_credentials_ids', [])
+        ssh_credentials = validated_data.pop('sshcredential_set', [])
+        winrm_credentials = validated_data.pop('winrmcredential_set', [])
         host = super().create(validated_data)
         host.sshcredential_set.set(ssh_credentials)
         host.winrmcredential_set.set(winrm_credentials)
         return host
 
     def update(self, instance, validated_data):
-        ssh_credentials = validated_data.pop('ssh_credentials_ids', None)
-        winrm_credentials = validated_data.pop('winrm_credentials_ids', None)
+        ssh_credentials = validated_data.pop('sshcredential_set', None)
+        winrm_credentials = validated_data.pop('winrmcredential_set', None)
         host = super().update(instance, validated_data)
         if ssh_credentials is not None:
             host.sshcredential_set.set(ssh_credentials)
