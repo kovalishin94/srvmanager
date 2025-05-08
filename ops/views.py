@@ -10,7 +10,7 @@ class ExecuteCommandViewSet(mixins.CreateModelMixin,
                             mixins.DestroyModelMixin,
                             mixins.ListModelMixin,
                             viewsets.GenericViewSet):
-    queryset = ExecuteCommand.objects.all()
+    queryset = ExecuteCommand.objects.select_related('created_by').prefetch_related('hosts')
     serializer_class = ExecuteCommandSerializer
 
 
@@ -19,5 +19,5 @@ class SendFileViewSet(mixins.CreateModelMixin,
                       mixins.DestroyModelMixin,
                       mixins.ListModelMixin,
                       viewsets.GenericViewSet):
-    queryset = SendFile.objects.all()
+    queryset = SendFile.objects.select_related('created_by').prefetch_related('hosts')
     serializer_class = SendFileSerializer

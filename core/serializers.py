@@ -3,6 +3,16 @@ from django.contrib.auth.models import User
 
 from .models import Host, SSHCredential, WinRMCredential
 
+class UserShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name']
+
+class HostShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Host
+        fields = ['name', 'ip']
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
