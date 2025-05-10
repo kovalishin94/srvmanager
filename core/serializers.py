@@ -11,7 +11,7 @@ class UserShortSerializer(serializers.ModelSerializer):
 class HostShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = Host
-        fields = ['name', 'ip']
+        fields = ['id', 'name', 'ip']
 
 
 class UserSerializer(serializers.ModelSerializer):
