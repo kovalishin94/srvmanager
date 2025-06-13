@@ -6,7 +6,7 @@ from .tasks import run_operation
 
 
 @receiver(m2m_changed, sender=ExecuteCommand.hosts.through)
-def execute_command_post_save(_, instance: ExecuteCommand, action, **kwargs):
+def execute_command_post_save(sender, instance: ExecuteCommand, action, **kwargs):
     if action != "post_add" or instance.log.keys():
         return
 
@@ -14,7 +14,7 @@ def execute_command_post_save(_, instance: ExecuteCommand, action, **kwargs):
 
 
 @receiver(m2m_changed, sender=SendFile.hosts.through)
-def send_file_post_save(_, instance: SendFile, action, **kwargs):
+def send_file_post_save(sender, instance: SendFile, action, **kwargs):
     if action != "post_add" or instance.log.keys():
         return
 

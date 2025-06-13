@@ -2,3 +2,6 @@
 .git
 __pycache__
 *.pyc
+*.tar.gz
+ssh_keys/
+static

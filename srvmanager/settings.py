@@ -33,6 +33,7 @@ SECRET_KEY = os.getenv('SECRET')
 DEBUG = get_bool_env('DEBUG', False)
 
 ALLOWED_HOSTS = get_list_env('ALLOWED_HOSTS', ['*'])
+CSRF_TRUSTED_ORIGINS = get_list_env('CSRF_TRUSTED_ORIGINS', ['http://127.0.0.1:8080'])
 CORS_ALLOW_ALL_ORIGINS = get_bool_env('CORS_ALLOW_ALL_ORIGINS', False)
 
 AUTHENTICATION_BACKENDS = [
@@ -164,6 +165,8 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'static'
+
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

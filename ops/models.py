@@ -58,7 +58,7 @@ class ExecuteCommand(BaseOperation):
     def run_winrm_command(self, session: winrm.Session, ip: str):
         for command in self.command:
             result = session.run_ps(command)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-5]
             stdout = result.std_out.decode('cp1251')
             stderr = result.std_err.decode('cp1251')
             key = f'{timestamp} [{ip}]'
@@ -94,7 +94,7 @@ class ExecuteCommand(BaseOperation):
             if password and self.sudo:
                 command = f'echo {password} | sudo -S {command}'
             stdin, stdout, stderr = client.exec_command(command)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-5]
             key = f'{timestamp} [{ip}]'
             stdout = stdout.read().decode('utf-8')
             stderr = stderr.read().decode('utf-8')
