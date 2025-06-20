@@ -42,3 +42,4 @@ class SendFileViewSet(mixins.CreateModelMixin,
                       viewsets.GenericViewSet):
     queryset = SendFile.objects.select_related('created_by').prefetch_related('hosts')
     serializer_class = SendFileSerializer
+    pagination_class = OperationPageNumberPagination

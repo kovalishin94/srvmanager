@@ -7,8 +7,8 @@ from .models import ExecuteCommand, SendFile
 
 class BaseOperationSerializer(serializers.ModelSerializer):
     created_by = UserShortSerializer(read_only=True)
-    created_at = serializers.DateTimeField(format='%d.%m.%Y %H:%M:%S', read_only=True)
-    updated_at = serializers.DateTimeField(format='%d.%m.%Y %H:%M:%S', read_only=True)
+    created_at = serializers.DateTimeField(format='%d.%m.%Y %H:%M:%S', read_only=True) # type: ignore
+    updated_at = serializers.DateTimeField(format='%d.%m.%Y %H:%M:%S', read_only=True) # type: ignore
     class Meta:
         model = None
         fields = ['id', 'created_by', 'log',
@@ -48,3 +48,8 @@ class SendFileSerializer(BaseOperationSerializer):
         model = SendFile
         fields = BaseOperationSerializer.Meta.fields + \
             ['hosts', 'hosts_display', 'protocol', 'local_path', 'target_path', 'file']
+        
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['hosts'] = rep.pop('hosts_display', [])
+        return rep

@@ -166,7 +166,7 @@ class SendFile(BaseOperation):
 
         if not local_path:
             self.add_log(
-                f'[{host.ip}] Нет указан файл для отправки.')
+                f'[{host.ip}] Не указан файл для отправки.')
             return False
         sftp = None
         try:

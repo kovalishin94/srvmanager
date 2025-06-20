@@ -2,3 +2,4 @@
 *.tar.gz
 ssh_keys/
 static
+files_to_send
