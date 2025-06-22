@@ -1,7 +1,7 @@
 from rest_framework import viewsets, mixins
 
-from .models import EtalonInstance, UpdateFile
-from .serializers import EtalonInstancesSerializer, UpdateFileSerializer
+from .models import EtalonInstance, UpdateFile, EtalonUpdate
+from .serializers import EtalonInstancesSerializer, UpdateFileSerializer, EtalonUpdateSerializer
 
 
 class EtalonInstanceViewSet(viewsets.ModelViewSet):
@@ -16,3 +16,11 @@ class UpdateFileViewSet(mixins.CreateModelMixin,
                         viewsets.GenericViewSet):
     queryset = UpdateFile.objects.all()
     serializer_class = UpdateFileSerializer
+
+class EtalonUpdateViewSet(mixins.CreateModelMixin,
+                        mixins.RetrieveModelMixin,
+                        mixins.DestroyModelMixin,
+                        mixins.ListModelMixin,
+                        viewsets.GenericViewSet):
+    queryset = EtalonUpdate.objects.all()
+    serializer_class = EtalonUpdateSerializer

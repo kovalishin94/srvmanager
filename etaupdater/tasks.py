@@ -1,9 +1,11 @@
 import uuid
-from celery import shared_task
+from celery import shared_task, chord, group
 from celery.exceptions import MaxRetriesExceededError
 
-from ops.models import ExecuteCommand, SendFile
-from .models import EtalonInstance, PrepareUpdate
+from core.models import Host
+from ops.models import ExecuteCommand
+from .models import EtalonInstance, PrepareUpdate, EtalonUpdate
+
 
 @shared_task(bind=True, max_retries=3)
 def check_execute_command(self, execute_command_id: uuid, etalon_instance_id: int):
@@ -67,3 +69,44 @@ def process_stage(self, prepare_update_id: uuid, tasks_ids: dict, stage: str = '
 
     except MaxRetriesExceededError:
         prepare_update.error_log(f'Не удалось дождаться завершения задач на стадии {stage_full_name}. Подготовка к обновлению прервана.')
+
+
+#----------------------EtalonUpdate----------------------
+@shared_task
+def finalize_update(results, etalon_update_id: uuid):
+    etalon_update = EtalonUpdate.objects.get(id=etalon_update_id)
+    if False in results:
+        etalon_update.status = "error"
+        etalon_update.save(update_fields=["status"])
+        etalon_update.add_log("Обновление завершилось с ошибками.")
+        return
+    etalon_update.status = "completed"
+    etalon_update.save(update_fields=["status"])
+    etalon_update.add_log("Обновление успешно выполнено.")
+
+@shared_task
+def run_etalon_update(etalon_update_id: uuid):
+    """
+    Точка входа — запускается сигналом m2m для EtalonUpdate.
+    Создаём по одному подпроцессу на каждый уникальный хост.
+    """
+    etalon_update = EtalonUpdate.objects.get(id=etalon_update_id)
+    etalon_update.status = 'progress'
+    etalon_update.save(update_fields=['status'])
+    etalon_update.add_log("Начинается обновление")
+
+    hosts = Host.objects.filter(id__in=etalon_update.instances.values_list('host_id', flat=True).distinct())
+
+    # каждая под-таска работает с одним хостом
+    subtasks = group(
+        run_host_update.s(etalon_update_id, host.id) for host in hosts
+    )
+    chord(subtasks)(finalize_update.s(etalon_update_id))
+
+@shared_task
+def run_host_update(etalon_update_id: uuid, host_id: int):
+    """
+    Запускается параллельно по количеству уникальных хостов.
+    """
+    etalon_update = EtalonUpdate.objects.get(id=etalon_update_id)
+    return etalon_update.run(host_id)

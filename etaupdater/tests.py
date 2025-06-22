@@ -5,7 +5,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from core.models import Host, SSHCredential
 from core.tests import BaseTestCase
-from .models import UpdateFile, PrepareUpdate, EtalonInstance
+from .models import UpdateFile, EtalonInstance
 
 
 class EtaupdaterTestCase(BaseTestCase):
@@ -56,20 +56,29 @@ class EtaupdaterTestCase(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         os.remove(update_file.file.path)
 
-    def test_prepare_update(self):
-        with open("/app/test_files/good_update.tar.gz", 'rb') as f:
+    def test_etalon_update(self):
+        with open("/app/test_files/update_jetalon.tar.gz", 'rb') as f:
             test_file = SimpleUploadedFile(name=f.name, content=f.read())
         data_file = {"file": test_file}
-        self.client.post(reverse('update-file-list'), data_file)
-        data_instance = {
-            'path_to_instance': '/opt/jetalon',
+        response = self.client.post(reverse('update-file-list'), data_file)
+        self.assertEqual(response.status_code, 201)
+        response = self.client.post(reverse('etalon-instance-list'), {
+            'path_to_instance': '/opt/etalon_first',
             'host': self.host.id,
-        }
-        self.client.post(reverse('etalon-instance-list'), data_instance)
+            'docker_command': 'docker compose'
+        })
+        self.assertEqual(response.status_code, 201)
+        response = self.client.post(reverse('etalon-instance-list'), {
+            'path_to_instance': '/opt/etalon_second',
+            'host': self.host.id,
+            'docker_command': 'docker compose'
+        })
+        self.assertEqual(response.status_code, 201)
         update_file = UpdateFile.objects.first()
         instance = EtalonInstance.objects.first()
-        prepare_update = PrepareUpdate.objects.create(
-            created_by=self.user,
-            update_file=update_file
-        )
-        prepare_update.instances.add(instance)
+        instance_new = EtalonInstance.objects.last()
+        response = self.client.post(reverse('etalon-update-list'), {
+            "instances": [instance.id, instance_new.id],
+            "update_file": update_file.id,
+        })
+        self.assertEqual(response.status_code, 201)

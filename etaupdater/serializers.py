@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
-from .models import EtalonInstance, UpdateFile
+from ops.serializers import BaseOperationSerializer
+from .models import EtalonInstance, UpdateFile, EtalonUpdate
 
 
 class EtalonInstancesSerializer(serializers.ModelSerializer):
@@ -44,3 +45,19 @@ class UpdateFileSerializer(serializers.ModelSerializer):
         if request and hasattr(request, 'user'):
             validated_data['loaded_by'] = request.user
         return super().create(validated_data)
+
+class EtalonUpdateSerializer(BaseOperationSerializer):
+    instances = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=EtalonInstance.objects.all(),
+        write_only=True,
+    )
+    instances_display = EtalonInstancesSerializer(many=True, read_only=True, source='instances')
+    class Meta:
+        model = EtalonUpdate
+        fields = BaseOperationSerializer.Meta.fields + ['instances', 'update_file', 'instances_display']
+
+    def to_representation(self, instance):
+        rep = super().to_representation(instance)
+        rep['instances'] = rep.pop('instances_display', [])
+        return rep

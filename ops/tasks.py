@@ -17,10 +17,12 @@ def check_results(results, operation_id: uuid, operation_type: str):
     for result in results:
         if result == False:
             operation.status = 'error'
+            operation.save(update_fields=['status'])
             operation.add_log('Операция завершена с ошибками.')
             return
 
     operation.status = 'completed'
+    operation.save(update_fields=['status'])
     operation.add_log('Операция успешно завершена.')
 
 
@@ -33,6 +35,7 @@ def run_operation(operation_id: uuid, operation_type: str):
 
     operation = model.objects.get(id=operation_id)
     operation.status = 'progress'
+    operation.save(update_fields=['status'])
     operation.add_log('Операция запущена.')
 
     tasks = [

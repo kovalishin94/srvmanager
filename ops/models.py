@@ -3,7 +3,7 @@ import winrm
 import paramiko
 from typing import Callable, Any
 
-from django.db import models
+from django.db import models, transaction
 from datetime import datetime
 from django.contrib.auth.models import User
 
@@ -28,14 +28,21 @@ class BaseOperation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def add_log(self, message: str) -> None:
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-        self.log[timestamp] = message
-        print(self.id, message)
-        self.save()
+    def add_log(self, message: str, key_prefix: str = '') -> None:
+        cls = self.__class__
+        with transaction.atomic():
+            obj = cls.objects.select_for_update().get(id=self.id)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            key = f'{timestamp} {key_prefix}' if key_prefix else timestamp
+            log = obj.log or {}
+            log[key] = message
+            obj.log = log
+            print(self.id, message)
+            obj.save(update_fields=["log"])
 
     def error_log(self, message: str) -> None:
         self.status = 'error'
+        self.save(update_fields=['status'])
         self.add_log('[ERROR] ' + message)
 
     class Meta:
@@ -58,7 +65,7 @@ class ExecuteCommand(BaseOperation):
     def run_winrm_command(self, session: winrm.Session, ip: str):
         for command in self.command:
             result = session.run_ps(command)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-5]
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             stdout = result.std_out.decode('cp1251')
             stderr = result.std_err.decode('cp1251')
             key = f'{timestamp} [{ip}]'
@@ -92,9 +99,9 @@ class ExecuteCommand(BaseOperation):
     def run_ssh_command(self, client: paramiko.SSHClient, ip: str, password: str | None = None):
         for command in self.command:
             if password and self.sudo:
-                command = f'echo {password} | sudo -S {command}'
+                command = f"echo {password} | sudo -S bash -c '{command}'"
             stdin, stdout, stderr = client.exec_command(command)
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-5]
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             key = f'{timestamp} [{ip}]'
             stdout = stdout.read().decode('utf-8')
             stderr = stderr.read().decode('utf-8')

@@ -1,8 +1,9 @@
+import time
 import os
 import tarfile
 
 from uuid import UUID
-from typing import Dict, Callable, Tuple, Type
+from typing import Dict
 from datetime import datetime
 from django.db import models
 from django.core.validators import FileExtensionValidator
@@ -18,6 +19,12 @@ class EtalonInstance(models.Model):
     """
     Площадка Эталона 3
     """
+    DOCKER_COMMAND_CHOICES = (
+        ('docker-compose', 'Old'),
+        ('docker compose', 'New'),
+    )
+
+
     url = models.URLField(editable=False, blank=True)
     path_to_instance = models.TextField(validators=[path_validator])
     host = models.ForeignKey(
@@ -27,6 +34,7 @@ class EtalonInstance(models.Model):
     stand = models.CharField(max_length=255, editable=False, blank=True)
     is_valid = models.BooleanField(editable=False, default=False)
     ready_to_update = models.BooleanField(editable=False, default=False)
+    docker_command = models.CharField(choices=DOCKER_COMMAND_CHOICES, default='docker compose', max_length=255)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -239,7 +247,7 @@ class PrepareUpdate(BaseOperation):
                 created_by=self.created_by,
                 protocol='sftp',
                 local_path=self.update_file.file.path,
-                target_path=f'{instance.path_to_instance}/update_jetalon.tar.gz'
+                target_path='/tmp/update_jetalon.tar.gz'
             )
             send_file.hosts.add(instance.host)
             result[str(send_file.id)] = instance.id
@@ -264,9 +272,11 @@ class PrepareUpdate(BaseOperation):
             execute_command = ExecuteCommand.objects.create(
                 created_by=self.created_by,
                 protocol='ssh',
-                command=[f'cd {instance.path_to_instance}; tar xvf update_jetalon.tar.gz',
-                         f'cd {instance.path_to_instance}; ./prepare_update.sh',
-                         f'cat {instance.path_to_instance}/.env'],
+                command=[
+                    f'cp /tmp/update_jetalon.tar.gz {instance.path_to_instance}'
+                    f'cd {instance.path_to_instance}; tar xvf update_jetalon.tar.gz',
+                    f'cd {instance.path_to_instance}; ./prepare_update.sh',
+                    f'cat {instance.path_to_instance}/.env'],
                 sudo=True
             )
             execute_command.hosts.add(instance.host)
@@ -314,3 +324,78 @@ class PrepareUpdate(BaseOperation):
 
         self.status = 'completed'
         self.add_log('Подготовка к обновлению завершена.')
+
+class EtalonUpdate(BaseOperation):
+    """
+    Операция по обновлению площадок Эталона 3 (EtalonInstance) с помощью файла обновления.
+
+    Атрибуты:
+        instances (ManyToMany[EtalonInstance]): Площадки эталона, которые будут обновлены.
+        update_file (ForeignKey[UpdateFile | None]): Файл обновления с ресурсами (может быть None),
+            при удалении связанного объекта UpdateFile здесь устанавливается значение NULL.
+
+    """
+    instances = models.ManyToManyField(EtalonInstance)
+    update_file = models.ForeignKey(UpdateFile, on_delete=models.SET_NULL, null=True)
+
+    def run(self, host_id: int) -> bool:
+        host = Host.objects.get(id=host_id)
+        instances = EtalonInstance.objects.filter(host=host, is_valid=True)
+
+        if not self.__send_file_to_host(host):
+            return False
+
+        for instance in instances:
+            if not self.__process_update(instance):
+                return False
+
+        return True
+
+    def __wait_operation(self, op: BaseOperation, ctx: str) -> bool:
+        started = datetime.now()
+        op.refresh_from_db()
+        while True:
+            if op.status == 'completed':
+                self.add_log(f"{ctx}: успешно")
+                return True
+            if op.status == 'error':
+                self.add_log(f"{ctx}: завершилось ошибкой")
+                return False
+            if (datetime.now() - started).seconds > settings.ETALON_UPDATE_OPERATION_TIMEOUT:
+                return False
+            time.sleep(settings.ETALON_UPDATE_OPERATION_WAIT_INTERVAL)
+
+    def __send_file_to_host(self, host: Host) -> bool:
+        send_file = SendFile.objects.create(
+            created_by=self.created_by,
+            protocol='sftp',
+            local_path=self.update_file.file.path,
+            target_path='/tmp/update_jetalon.tar.gz'
+        )
+        send_file.hosts.add(host)
+        return self.__wait_operation(send_file, f"[{host.ip}] отправка файла")
+
+    def __process_update(self, instance: EtalonInstance) -> bool:
+        fp = "/tmp/update_jetalon.tar.gz"
+        path = instance.path_to_instance
+        execute_command = ExecuteCommand.objects.create(
+            created_by=self.created_by,
+            protocol='ssh',
+            command=[
+                f'tar -xzf {fp} -C {path}',
+                f'cd {path} && ./prepare_update.sh',
+                f'cd {path} && {instance.docker_command} up -d'
+            ],
+            sudo=True
+        )
+        execute_command.hosts.add(instance.host)
+
+        return self.__wait_operation(execute_command, f"[{instance.stand}] выполнение команд обновления")
+
+    # def make_hosts_and_instances_dict(self):
+    #     result = {}
+    #     for instance in self.instances.all():
+    #         instance_list = result.get(instance.host.id, [])
+    #         instance_list.append(instance.id)
+    #         result[instance.host.id] = instance_list
+    #     return result

@@ -1,12 +1,13 @@
 from django.dispatch import receiver
 from django.db.models.signals import post_save, m2m_changed
 
-from .models import EtalonInstance, UpdateFile, PrepareUpdate
-from .tasks import check_execute_command, process_stage
+from .models import EtalonInstance, UpdateFile, PrepareUpdate, EtalonUpdate
+from .tasks import check_execute_command, process_stage, run_etalon_update
 
 
 @receiver(post_save, sender=EtalonInstance)
 def etalon_instance_post_save(sender, instance: EtalonInstance, created, **kwargs):
+    _ = sender, kwargs
     if not created:
         return
 
@@ -18,6 +19,7 @@ def etalon_instance_post_save(sender, instance: EtalonInstance, created, **kwarg
 
 @receiver(post_save, sender=UpdateFile)
 def update_file_post_save(sender, instance: UpdateFile, created, **kwargs):
+    _ = sender, kwargs
     if not created:
         return
 
@@ -26,7 +28,8 @@ def update_file_post_save(sender, instance: UpdateFile, created, **kwargs):
 
 @receiver(m2m_changed, sender=PrepareUpdate.instances.through)
 def prepare_update_post_save(sender, instance: PrepareUpdate, action, **kwargs):
-    if action != "post_add" or instance.log.keys():
+    _ = sender, kwargs
+    if action != "post_add" or instance.log:
         return
 
     instance.status = 'progress'
@@ -43,3 +46,11 @@ def prepare_update_post_save(sender, instance: PrepareUpdate, action, **kwargs):
     process_stage.apply_async(
         args=[instance.id, send_file_tasks_ids], countdown=10
     )
+
+#----------------------EtalonUpdate----------------------
+@receiver(m2m_changed, sender=EtalonUpdate.instances.through)
+def etalon_update_post_save(sender, instance: EtalonUpdate, action, **kwargs):
+    _ = sender, kwargs
+    if action != "post_add" or instance.log:
+        return
+    run_etalon_update.delay(instance.id)
