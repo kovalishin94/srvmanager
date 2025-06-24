@@ -1,10 +1,12 @@
 from rest_framework import serializers
 
 from ops.serializers import BaseOperationSerializer
+from core.serializers import UserShortSerializer
 from .models import EtalonInstance, UpdateFile, EtalonUpdate
 
 
 class EtalonInstancesSerializer(serializers.ModelSerializer):
+    created_by = UserShortSerializer(read_only=True)
     class Meta:
         model = EtalonInstance
         fields = [
@@ -29,6 +31,7 @@ class EtalonInstancesSerializer(serializers.ModelSerializer):
 
 
 class UpdateFileSerializer(serializers.ModelSerializer):
+    loaded_by = UserShortSerializer(read_only=True)
     class Meta:
         model = UpdateFile
         fields = [

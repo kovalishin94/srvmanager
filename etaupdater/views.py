@@ -1,5 +1,6 @@
 from rest_framework import viewsets, mixins
 
+from core.views import CorePageNumberPagination
 from .models import EtalonInstance, UpdateFile, EtalonUpdate
 from .serializers import EtalonInstancesSerializer, UpdateFileSerializer, EtalonUpdateSerializer
 
@@ -7,6 +8,7 @@ from .serializers import EtalonInstancesSerializer, UpdateFileSerializer, Etalon
 class EtalonInstanceViewSet(viewsets.ModelViewSet):
     queryset = EtalonInstance.objects.all()
     serializer_class = EtalonInstancesSerializer
+    pagination_class = CorePageNumberPagination
 
 
 class UpdateFileViewSet(mixins.CreateModelMixin,
@@ -16,6 +18,7 @@ class UpdateFileViewSet(mixins.CreateModelMixin,
                         viewsets.GenericViewSet):
     queryset = UpdateFile.objects.all()
     serializer_class = UpdateFileSerializer
+    pagination_class = CorePageNumberPagination
 
 class EtalonUpdateViewSet(mixins.CreateModelMixin,
                         mixins.RetrieveModelMixin,
@@ -24,3 +27,4 @@ class EtalonUpdateViewSet(mixins.CreateModelMixin,
                         viewsets.GenericViewSet):
     queryset = EtalonUpdate.objects.all()
     serializer_class = EtalonUpdateSerializer
+    pagination_class = CorePageNumberPagination
