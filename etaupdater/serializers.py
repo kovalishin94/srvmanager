@@ -32,6 +32,7 @@ class EtalonInstancesSerializer(serializers.ModelSerializer):
 
 class UpdateFileSerializer(serializers.ModelSerializer):
     loaded_by = UserShortSerializer(read_only=True)
+    created_at = serializers.DateTimeField(format='%d.%m.%Y %H:%M:%S', read_only=True)
     class Meta:
         model = UpdateFile
         fields = [
