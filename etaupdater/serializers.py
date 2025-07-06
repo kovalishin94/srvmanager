@@ -50,18 +50,34 @@ class UpdateFileSerializer(serializers.ModelSerializer):
             validated_data['loaded_by'] = request.user
         return super().create(validated_data)
 
+class EtalonInstanceShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EtalonInstance
+        fields = ['id', 'url', 'version', 'tag', 'stand']
+
+class UpdateFileShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UpdateFile
+        fields = ['id', 'version', 'tag']
+
 class EtalonUpdateSerializer(BaseOperationSerializer):
     instances = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=EtalonInstance.objects.all(),
         write_only=True,
     )
-    instances_display = EtalonInstancesSerializer(many=True, read_only=True, source='instances')
+    instances_display = EtalonInstanceShortSerializer(many=True, read_only=True, source='instances')
+    update_file = serializers.PrimaryKeyRelatedField(
+        queryset=UpdateFile.objects.all(),
+        write_only=True,
+    )
+    update_file_display = UpdateFileShortSerializer(read_only=True, source='update_file')
     class Meta:
         model = EtalonUpdate
-        fields = BaseOperationSerializer.Meta.fields + ['instances', 'update_file', 'instances_display']
+        fields = BaseOperationSerializer.Meta.fields + ['instances', 'update_file', 'instances_display', 'update_file_display']
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
         rep['instances'] = rep.pop('instances_display', [])
+        rep['update_file'] = rep.pop('update_file_display', None)
         return rep

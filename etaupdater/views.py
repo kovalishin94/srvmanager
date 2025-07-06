@@ -6,7 +6,7 @@ from .serializers import EtalonInstancesSerializer, UpdateFileSerializer, Etalon
 
 
 class EtalonInstanceViewSet(viewsets.ModelViewSet):
-    queryset = EtalonInstance.objects.all()
+    queryset = EtalonInstance.objects.all().order_by('-created_at')
     serializer_class = EtalonInstancesSerializer
     pagination_class = CorePageNumberPagination
 
@@ -25,6 +25,6 @@ class EtalonUpdateViewSet(mixins.CreateModelMixin,
                         mixins.DestroyModelMixin,
                         mixins.ListModelMixin,
                         viewsets.GenericViewSet):
-    queryset = EtalonUpdate.objects.all()
+    queryset = EtalonUpdate.objects.prefetch_related('instances', 'update_file').order_by('-created_at')
     serializer_class = EtalonUpdateSerializer
     pagination_class = CorePageNumberPagination

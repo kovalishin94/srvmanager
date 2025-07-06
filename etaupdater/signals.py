@@ -8,8 +8,6 @@ from .tasks import check_execute_command, process_stage, run_etalon_update
 @receiver(post_save, sender=EtalonInstance)
 def etalon_instance_post_save(sender, instance: EtalonInstance, created, **kwargs):
     _ = sender, kwargs
-    if not created:
-        return
 
     execute_command = instance.create_execute_command()
 

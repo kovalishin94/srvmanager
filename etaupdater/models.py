@@ -340,7 +340,7 @@ class EtalonUpdate(BaseOperation):
 
     def run(self, host_id: int) -> bool:
         host = Host.objects.get(id=host_id)
-        instances = EtalonInstance.objects.filter(host=host, is_valid=True)
+        instances = self.instances.filter(host=host, is_valid=True)
 
         if not self.__send_file_to_host(host):
             return False
@@ -348,13 +348,14 @@ class EtalonUpdate(BaseOperation):
         for instance in instances:
             if not self.__process_update(instance):
                 return False
+            instance.save()
 
         return True
 
     def __wait_operation(self, op: BaseOperation, ctx: str) -> bool:
         started = datetime.now()
-        op.refresh_from_db()
         while True:
+            op.refresh_from_db()
             if op.status == 'completed':
                 self.add_log(f"{ctx}: успешно")
                 return True
@@ -362,6 +363,7 @@ class EtalonUpdate(BaseOperation):
                 self.add_log(f"{ctx}: завершилось ошибкой")
                 return False
             if (datetime.now() - started).seconds > settings.ETALON_UPDATE_OPERATION_TIMEOUT:
+                self.add_log(f"{ctx}: завершилось по таймауту")
                 return False
             time.sleep(settings.ETALON_UPDATE_OPERATION_WAIT_INTERVAL)
 
