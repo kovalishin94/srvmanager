@@ -69,7 +69,8 @@ class EtalonInstance(models.Model):
         execute_command = ExecuteCommand.objects.create(
             command=[f'cat {self.path_to_instance}/.env'],
             protocol='ssh',
-            created_by=self.created_by
+            sudo=True,
+            created_by=self.created_by,
         )
         execute_command.hosts.add(self.host)
         return execute_command
@@ -355,7 +356,9 @@ class EtalonUpdate(BaseOperation):
                 return False
             if not self.__check_health(instance, f"[{instance.stand}] health check"):
                 return False
-            instance.save()
+            instance.version = self.update_file.version
+            instance.tag = self.update_file.tag
+            instance.save(update_fields=["version", "tag", "updated_at"])
 
         return True
 

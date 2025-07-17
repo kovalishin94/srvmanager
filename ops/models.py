@@ -99,7 +99,7 @@ class ExecuteCommand(BaseOperation):
     def run_ssh_command(self, client: paramiko.SSHClient, ip: str, password: str | None = None):
         for command in self.command:
             if password and self.sudo:
-                command = f"echo {password} | sudo -S bash -c '{command}'"
+                command = f"echo '{password}' | sudo -S bash -c '{command}'"
             stdin, stdout, stderr = client.exec_command(command)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             key = f'{timestamp} [{ip}]'
