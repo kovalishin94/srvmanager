@@ -1,7 +1,9 @@
 import time
 import os
 import tarfile
+import requests
 
+from urllib.parse import urljoin
 from uuid import UUID
 from typing import Dict
 from datetime import datetime
@@ -13,6 +15,9 @@ from django.conf import settings
 from core.models import Host
 from ops.models import ExecuteCommand, BaseOperation, SendFile
 from .validators import path_validator, update_file_validator
+
+class UnhealthException(Exception):
+    pass
 
 
 class EtalonInstance(models.Model):
@@ -348,6 +353,8 @@ class EtalonUpdate(BaseOperation):
         for instance in instances:
             if not self.__process_update(instance):
                 return False
+            if not self.__check_health(instance, f"[{instance.stand}] health check"):
+                return False
             instance.save()
 
         return True
@@ -393,11 +400,21 @@ class EtalonUpdate(BaseOperation):
         execute_command.hosts.add(instance.host)
 
         return self.__wait_operation(execute_command, f"[{instance.stand}] выполнение команд обновления")
-
-    # def make_hosts_and_instances_dict(self):
-    #     result = {}
-    #     for instance in self.instances.all():
-    #         instance_list = result.get(instance.host.id, [])
-    #         instance_list.append(instance.id)
-    #         result[instance.host.id] = instance_list
-    #     return result
+    
+    def __check_health(self, instance: EtalonInstance, ctx: str) -> bool:
+        url = urljoin(instance.url, "/csp/sou/rest/dev/main/actuator/health")
+        started = datetime.now()
+        while True:
+            try:
+                response = requests.get(url, timeout=15)
+                response.raise_for_status()
+                if response.json().get("status") != "UP":
+                    raise UnhealthException("Статус площадки отличен от UP")
+                self.add_log(f"{ctx}: успешно")
+                return True
+            except Exception as e:
+                if (datetime.now() - started).seconds > settings.ETALON_UPDATE_OPERATION_TIMEOUT:
+                    self.add_log(f"{ctx}: завершилось по таймауту")
+                    return False
+                self.add_log(f"{ctx}: {e}. Следующая попытка через {settings.ETALON_UPDATE_OPERATION_WAIT_INTERVAL}")
+                time.sleep(settings.ETALON_UPDATE_OPERATION_WAIT_INTERVAL)

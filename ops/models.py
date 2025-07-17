@@ -38,11 +38,11 @@ class BaseOperation(models.Model):
             log[key] = message
             obj.log = log
             print(self.id, message)
-            obj.save(update_fields=["log"])
+            obj.save(update_fields=["log", "updated_at"])
 
     def error_log(self, message: str) -> None:
         self.status = 'error'
-        self.save(update_fields=['status'])
+        self.save(update_fields=["status", "updated_at"])
         self.add_log('[ERROR] ' + message)
 
     class Meta:
