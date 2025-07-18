@@ -73,7 +73,7 @@ class ExecuteCommand(BaseOperation):
                 self.stdout[key] = stdout
             if stderr:
                 self.stderr[key] = stderr
-            self.save()
+            self.save(update_fields=["stdout", "stderr", "updated_at"])
 
     def run_winrm(self, host: Host) -> bool:
         winrm_credential: WinRMCredential = host.winrmcredential_set.first()
@@ -109,7 +109,7 @@ class ExecuteCommand(BaseOperation):
                 self.stdout[key] = stdout
             if stderr:
                 self.stderr[key] = stderr
-            self.save()
+            self.save(update_fields=["stdout", "stderr", "updated_at"])
 
     def run_ssh(self, host: Host) -> bool | None:
         ssh_credential = host.sshcredential_set.first()
