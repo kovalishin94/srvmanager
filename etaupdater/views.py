@@ -13,7 +13,7 @@ class EtalonInstanceViewSet(viewsets.ModelViewSet):
     serializer_class = EtalonInstancesSerializer
     pagination_class = CorePageNumberPagination
 
-    @action(methods=["POST"], detail=True)
+    @action(methods=["GET"], detail=True)
     def check(self, request, pk=None):
         instance = self.get_object()
         execute_command = instance.create_execute_command()

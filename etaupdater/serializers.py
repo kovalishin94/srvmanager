@@ -15,6 +15,7 @@ class EtalonInstancesSerializer(serializers.ModelSerializer):
             'path_to_instance',
             'host',
             'version',
+            'docker_command',
             'tag',
             'stand',
             'is_valid',
