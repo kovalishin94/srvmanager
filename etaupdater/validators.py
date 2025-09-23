@@ -17,13 +17,22 @@ def update_file_validator(file):
     """
     check_result = 0
     targets = ("./version.env", "./jetalon.env")
-    with tarfile.open(fileobj=file, mode='r:gz') as archive:
-        members = archive.getmembers()
-        for member in members:
-            if member.path == "./stand.env":
-                raise ValidationError(
-                    'Файл stand.env не должен присутствовать в архиве.')
-            if member.path in targets:
-                check_result += 1
+    
+    try:
+        with tarfile.open(fileobj=file, mode='r:gz') as archive:
+            members = archive.getmembers()
+            for member in members:
+                if member.path == "./stand.env":
+                    raise ValidationError(
+                        'Файл stand.env не должен присутствовать в архиве.')
+                if member.path in targets:
+                    check_result += 1
+    except (tarfile.ReadError, tarfile.CompressionError, EOFError) as e:
+        raise ValidationError(
+            'Загруженный файл не является корректным tar.gz архивом.')
+    except Exception as e:
+        raise ValidationError(
+            'Ошибка при обработке файла архива.')
+    
     if check_result != len(targets):
         raise ValidationError('Файл обновления не прошел валидацию.')
