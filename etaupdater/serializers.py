@@ -71,6 +71,7 @@ class EtalonUpdateSerializer(BaseOperationSerializer):
     update_file = serializers.PrimaryKeyRelatedField(
         queryset=UpdateFile.objects.all(),
         write_only=True,
+        required=True,
     )
     update_file_display = UpdateFileShortSerializer(read_only=True, source='update_file')
     class Meta:

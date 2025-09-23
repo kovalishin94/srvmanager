@@ -10,6 +10,11 @@ path_validator = RegexValidator(
 
 
 def update_file_validator(file):
+    """
+    Валидатор файла обновления Эталона. 
+    Проверяет, что в архиве присутствуют файлы version.env и jetalon.env - означает, что это корректный файл обновления.
+    Проверяет, что в архиве отсутствует файл stand.env - проврека на возможную ошибку использования файла install_jetalon.tar.gz вместо update_jetalon.tar.gz.
+    """
     check_result = 0
     targets = ("./version.env", "./jetalon.env")
     with tarfile.open(fileobj=file, mode='r:gz') as archive:
