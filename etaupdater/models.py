@@ -192,6 +192,8 @@ class EtalonUpdate(BaseOperation):
                 self.add_log(f"[{instance.stand}] пропуск обновления с не анонимной версии на анонимную")
                 continue
 
+            self.__copy_last_backup(instance)
+
             if not self.__check_health(instance, f"[{instance.stand}] health check before update"):
                 return False
             if not self.__process_update(instance):
@@ -223,6 +225,36 @@ class EtalonUpdate(BaseOperation):
                 self.add_log(f"{ctx}: завершилось по таймауту")
                 return False
             time.sleep(settings.ETALON_UPDATE_OPERATION_WAIT_INTERVAL)
+
+    def __copy_last_backup(self, instance: EtalonInstance):
+        """
+        Создает задачу на копирование последней резервной копии площадки Эталона.
+        Запускается для ИДЖ, Туризма, Экспертизы.
+        """
+        paths = {
+            "https://эталон.идж.рф": r"D:\bckps\bck_pprod\эталон.идж.рф",
+            "https://tur.sis-it.pro": r"D:\bckps\bck_pprod\tur.sis-it.pro",
+            "https://gosekspertizarb.sis-it.pro": r"D:\bckps\bck_pprod\gosekspertizarb.sis-it.pro",
+        }
+
+        if instance.url not in paths:
+            return
+        
+        path = paths[instance.url]
+
+        try:
+            host = Host.objects.get(ip="192.168.5.2", name="PDC")
+        except:
+            return
+
+        src, dst = path + r"\daily", path + r"\upd"
+
+        execute_command = ExecuteCommand.objects.create(
+            created_by=self.created_by,
+            protocol='winrm',
+            command=[f"Copy-Item -Path (Get-ChildItem -Path '{src}' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName -Destination '{dst}'"]
+        )
+        execute_command.hosts.add(host)
 
     def __check_free_space(self, host: Host) -> bool:
         """
