@@ -169,6 +169,10 @@ class EtalonUpdate(BaseOperation):
         host = Host.objects.get(id=host_id)
         instances = self.instances.filter(host=host, is_valid=True)
 
+        # Проверка свободного места на хосте для загрузки образов
+        if not self.__check_free_space(host):
+            return False
+        
         # Создаем задачу на отправку файла обновления на хост и следим за ее выполнением, если неудачно - выходим
         if not self.__send_file_to_host(host):
             return False
@@ -176,9 +180,23 @@ class EtalonUpdate(BaseOperation):
         # Для каждой площадки создаем задачу на выполнение команд по обновлению и следим за ее выполнением
         # Если на каком-то этапе неудачно - выходим
         for instance in instances:
+            # Защита от обновления с анонимной версии на не анонимную и наоборот
+            instance_is_anon = 'anonymous' in instance.version
+            update_file_is_anon = 'anonymous' in self.update_file.version
+
+            if instance_is_anon and not update_file_is_anon:
+                self.add_log(f"[{instance.stand}] пропуск обновления с анонимной версии на не анонимную")
+                continue
+
+            if not instance_is_anon and update_file_is_anon:
+                self.add_log(f"[{instance.stand}] пропуск обновления с не анонимной версии на анонимную")
+                continue
+
+            if not self.__check_health(instance, f"[{instance.stand}] health check before update"):
+                return False
             if not self.__process_update(instance):
                 return False
-            if not self.__check_health(instance, f"[{instance.stand}] health check"):
+            if not self.__check_health(instance, f"[{instance.stand}] health check after update"):
                 return False
             instance.version = self.update_file.version
             instance.tag = self.update_file.tag
@@ -205,6 +223,33 @@ class EtalonUpdate(BaseOperation):
                 self.add_log(f"{ctx}: завершилось по таймауту")
                 return False
             time.sleep(settings.ETALON_UPDATE_OPERATION_WAIT_INTERVAL)
+
+    def __check_free_space(self, host: Host) -> bool:
+        """
+        Проверяет, что на хосте достаточно свободного места для загрузки образов. Предварительно
+        создает задачу на выполнение команды df -m /var/lib/docker и парсит результат stdout команды.
+        """
+        df_command = ExecuteCommand.objects.create(
+            created_by=self.created_by,
+            protocol='ssh',
+            command=['df -m /var/lib/docker'],
+            sudo=True
+        )
+        df_command.hosts.add(host)
+
+        if not self.__wait_operation(df_command, f"[{host.ip}] проверка свободного места"):
+            return False
+        try:
+            free_space_mb = int(list(df_command.stdout.values())[-1].splitlines()[1].split()[3])
+            self.add_log(f"[{host.ip}] свободного места в /var/lib/docker: {free_space_mb} MB")
+        except Exception as e:
+            self.add_log(f"[{host.ip}] не удалось определить свободное место: {e}")
+            return False
+        
+        if free_space_mb < settings.ETALON_UPDATE_MIN_FREE_SPACE_MB:
+            self.add_log(f"[{host.ip}] недостаточно свободного места на хосте: {free_space_mb} MB")
+            return False
+        return True
 
     def __send_file_to_host(self, host: Host) -> bool:
         """
