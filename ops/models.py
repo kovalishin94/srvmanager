@@ -38,11 +38,11 @@ class BaseOperation(models.Model):
             log[key] = message
             obj.log = log
             print(self.id, message)
-            obj.save(update_fields=["log"])
+            obj.save(update_fields=["log", "updated_at"])
 
     def error_log(self, message: str) -> None:
         self.status = 'error'
-        self.save(update_fields=['status'])
+        self.save(update_fields=["status", "updated_at"])
         self.add_log('[ERROR] ' + message)
 
     class Meta:
@@ -73,7 +73,7 @@ class ExecuteCommand(BaseOperation):
                 self.stdout[key] = stdout
             if stderr:
                 self.stderr[key] = stderr
-            self.save()
+            self.save(update_fields=["stdout", "stderr", "updated_at"])
 
     def run_winrm(self, host: Host) -> bool:
         winrm_credential: WinRMCredential = host.winrmcredential_set.first()
@@ -99,7 +99,7 @@ class ExecuteCommand(BaseOperation):
     def run_ssh_command(self, client: paramiko.SSHClient, ip: str, password: str | None = None):
         for command in self.command:
             if password and self.sudo:
-                command = f"echo {password} | sudo -S bash -c '{command}'"
+                command = f"echo '{password}' | sudo -S bash -c '{command}'"
             stdin, stdout, stderr = client.exec_command(command)
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             key = f'{timestamp} [{ip}]'
@@ -109,7 +109,7 @@ class ExecuteCommand(BaseOperation):
                 self.stdout[key] = stdout
             if stderr:
                 self.stderr[key] = stderr
-            self.save()
+            self.save(update_fields=["stdout", "stderr", "updated_at"])
 
     def run_ssh(self, host: Host) -> bool | None:
         ssh_credential = host.sshcredential_set.first()

@@ -2,6 +2,9 @@
 set -e
 
 echo "Применяем миграции..."
+python manage.py makemigrations --noinput
+
+echo "Применяем миграции..."
 python manage.py migrate --noinput
 
 echo "Запускаем Gunicorn..."

@@ -10,15 +10,29 @@ path_validator = RegexValidator(
 
 
 def update_file_validator(file):
+    """
+    Валидатор файла обновления Эталона. 
+    Проверяет, что в архиве присутствуют файлы version.env и jetalon.env - означает, что это корректный файл обновления.
+    Проверяет, что в архиве отсутствует файл stand.env - проврека на возможную ошибку использования файла install_jetalon.tar.gz вместо update_jetalon.tar.gz.
+    """
     check_result = 0
     targets = ("./version.env", "./jetalon.env")
-    with tarfile.open(fileobj=file, mode='r:gz') as archive:
-        members = archive.getmembers()
-        for member in members:
-            if member.path == "./stand.env":
-                raise ValidationError(
-                    'Файл stand.env не должен присутствовать в архиве.')
-            if member.path in targets:
-                check_result += 1
+    
+    try:
+        with tarfile.open(fileobj=file, mode='r:gz') as archive:
+            members = archive.getmembers()
+            for member in members:
+                if member.path == "./stand.env":
+                    raise ValidationError(
+                        'Файл stand.env не должен присутствовать в архиве.')
+                if member.path in targets:
+                    check_result += 1
+    except (tarfile.ReadError, tarfile.CompressionError, EOFError) as e:
+        raise ValidationError(
+            'Загруженный файл не является корректным tar.gz архивом.')
+    except Exception as e:
+        raise ValidationError(
+            'Ошибка при обработке файла архива.')
+    
     if check_result != len(targets):
         raise ValidationError('Файл обновления не прошел валидацию.')

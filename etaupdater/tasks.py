@@ -4,7 +4,7 @@ from celery.exceptions import MaxRetriesExceededError
 
 from core.models import Host
 from ops.models import ExecuteCommand
-from .models import EtalonInstance, PrepareUpdate, EtalonUpdate
+from .models import EtalonInstance, EtalonUpdate
 
 
 @shared_task(bind=True, max_retries=3)
@@ -28,52 +28,12 @@ def check_execute_command(self, execute_command_id: uuid, etalon_instance_id: in
     except MaxRetriesExceededError:
         etalon_instance.is_valid = False
 
-
-@shared_task(bind=True, max_retries=5)
-def process_stage(self, prepare_update_id: uuid, tasks_ids: dict, stage: str = 'first'):
-    """
-    Задача по отработке каждой стадии выполнения PrepareUpdate.
-    """
-    prepare_update = PrepareUpdate.objects.get(id=prepare_update_id)
-    stage_conf = prepare_update.get_stage_conf(stage)
-    stage_full_name = stage_conf.get('stage_full_name')
-    try:
-        count_completed_tasks = prepare_update.check_operations(
-            tasks_ids, stage)
-
-        if count_completed_tasks is None:
-            raise self.retry(exc=Exception(
-                'Имеются не завершенные задачи.'), countdown=60)
-
-        if count_completed_tasks == 0:
-            prepare_update.error_log(
-                f'Нет ни одной успешной задачи на стадии {stage_full_name}. Подготовка к обновлению завершена с ошибкой.')
-            return
-
-        prepare_update.add_log(
-            f'На стадии {stage_full_name} успешно отработало {count_completed_tasks} задач.')
-
-        next_tasks_ids = stage_conf.get('next_fn')(list(tasks_ids.values()))
-
-        next_stage = stage_conf.get('next_stage', None)
-
-        if next_stage is None:
-            return
-
-        if not next_tasks_ids:
-            prepare_update.error_log(
-                f'Задачи для следующей стадии не были созданы.')
-            return
-
-        process_stage.delay(prepare_update_id, next_tasks_ids, next_stage)
-
-    except MaxRetriesExceededError:
-        prepare_update.error_log(f'Не удалось дождаться завершения задач на стадии {stage_full_name}. Подготовка к обновлению прервана.')
-
-
-#----------------------EtalonUpdate----------------------
 @shared_task
 def finalize_update(results, etalon_update_id: uuid):
+    """
+    Завершение обновления, анализ результатов.
+    Если хотя бы на одном хосте была ошибка, то считаем что обновление завершилось с ошибкой.
+    """
     etalon_update = EtalonUpdate.objects.get(id=etalon_update_id)
     if False in results:
         etalon_update.status = "error"
@@ -97,10 +57,11 @@ def run_etalon_update(etalon_update_id: uuid):
 
     hosts = Host.objects.filter(id__in=etalon_update.instances.values_list('host_id', flat=True).distinct())
 
-    # каждая под-таска работает с одним хостом
+    # создаем группу задач для каждого хоста, 1 воркер 1 хост
     subtasks = group(
         run_host_update.s(etalon_update_id, host.id) for host in hosts
     )
+    # создаем цепочку, которая после завершения всех задач вызовет finalize_update и передаст ей результаты
     chord(subtasks)(finalize_update.s(etalon_update_id))
 
 @shared_task
