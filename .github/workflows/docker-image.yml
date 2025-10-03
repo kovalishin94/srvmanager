@@ -17,7 +17,7 @@ jobs:
         with:
           registry: docker.kovalishin.ru
           username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ DOCKER_PASSWORD }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push
         uses: docker/build-push-action@v6.18.0
